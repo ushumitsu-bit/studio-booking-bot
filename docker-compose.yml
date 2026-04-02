@@ -1,0 +1,89 @@
+version: "3.9"
+
+services:
+
+  # ─── PostgreSQL ───────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: pilates_db
+      POSTGRES_USER: pilates
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strongpassword}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pilates"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis ───────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── Telegram Bot ────────────────────────────
+  bot:
+    build: .
+    restart: always
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pilates:${POSTGRES_PASSWORD:-strongpassword}@postgres:5432/pilates_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python main.py
+
+  # ─── Webhook Server (ЮKassa) ─────────────────
+  webhook:
+    build: .
+    restart: always
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pilates:${POSTGRES_PASSWORD:-strongpassword}@postgres:5432/pilates_db
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python -c "
+      import asyncio;
+      from aiogram import Bot;
+      from config import settings;
+      from webhook_app import run_webhook_server;
+      bot = Bot(token=settings.BOT_TOKEN);
+      loop = asyncio.get_event_loop();
+      runner = loop.run_until_complete(run_webhook_server(bot));
+      loop.run_forever()
+      "
+
+  # ─── Nginx (HTTPS reverse proxy) ─────────────
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - certbot_data:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    depends_on:
+      - webhook
+
+volumes:
+  postgres_data:
+  redis_data:
+  certbot_data:
+  certbot_www:
