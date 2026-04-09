@@ -98,7 +98,7 @@ async def initiate_payment(call: CallbackQuery, session: AsyncSession, db_user: 
         )
 
     except Exception as e:
-        logger.error(f"ЮKassa payment creation failed for user {db_user.id}: {e}")
+        logger.error(f"ЮKassa payment creation failed for user {db_user.id}: {e}", exc_info=True)
         await call.message.edit_text(
             "❌ Ошибка при создании платежа. Попробуй позже или напиши тренеру.",
             reply_markup=back_to_menu(),

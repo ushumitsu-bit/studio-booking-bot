@@ -3,7 +3,7 @@ from datetime import datetime
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from db.models import Booking, Class, SubscriptionType
+from db.models import Booking, Class
 from config import settings
 
 
@@ -61,19 +61,19 @@ def payment_plans_keyboard() -> InlineKeyboardMarkup:
     builder.row(
         InlineKeyboardButton(
             text=f"1 занятие — {settings.PRICE_SINGLE} ₽",
-            callback_data=f"pay_{SubscriptionType.SINGLE}",
+            callback_data="pay_single",
         )
     )
     builder.row(
         InlineKeyboardButton(
             text=f"4 занятия — {settings.PRICE_4_CLASSES} ₽",
-            callback_data=f"pay_{SubscriptionType.PACK_4}",
+            callback_data="pay_pack_4",
         )
     )
     builder.row(
         InlineKeyboardButton(
             text=f"8 занятий — {settings.PRICE_8_CLASSES} ₽ 🔥",
-            callback_data=f"pay_{SubscriptionType.PACK_8}",
+            callback_data="pay_pack_8",
         )
     )
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="menu"))

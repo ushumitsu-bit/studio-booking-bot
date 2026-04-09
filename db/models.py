@@ -72,6 +72,9 @@ class Class(Base):
     duration_min= Column(Integer, default=60)               # продолжительность, мин
     max_spots   = Column(Integer, default=8)
     is_cancelled= Column(Boolean, default=False)
+    location        = Column(String(128), default="Студия")        # Место проведения
+    payment_enabled = Column(Boolean, default=True)               # Оплата через бота
+    booking_enabled = Column(Boolean, default=True)               # Запись через бота
 
     bookings    = relationship("Booking", back_populates="cls")
 
