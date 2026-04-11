@@ -272,3 +272,22 @@ async def get_payment_by_yukassa(session: AsyncSession, yukassa_id: str) -> Opti
         select(Payment).where(Payment.yukassa_id == yukassa_id)
     )
     return result.scalar_one_or_none()
+# ─── Настройки студии ───────────────────────────────────────
+async def get_setting(session, key: str, default: str = "") -> str:
+    from sqlalchemy import text
+    result = await session.execute(text("SELECT value FROM settings WHERE key = :k"), {"k": key})
+    row = result.fetchone()
+    return row[0] if row else default
+
+async def set_setting(session, key: str, value: str):
+    from sqlalchemy import text
+    await session.execute(text(
+        "INSERT INTO settings (key, value, updated_at) VALUES (:k, :v, NOW()) "
+        "ON CONFLICT (key) DO UPDATE SET value = :v, updated_at = NOW()"
+    ), {"k": key, "v": value})
+    await session.commit()
+
+async def get_all_settings(session) -> dict:
+    from sqlalchemy import text
+    result = await session.execute(text("SELECT key, value FROM settings"))
+    return {row[0]: row[1] for row in result.fetchall()}

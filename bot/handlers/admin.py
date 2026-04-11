@@ -83,6 +83,10 @@ class AddClassFSM(StatesGroup):
     location     = State()
     payment_type = State()
 
+class SettingsFSM(StatesGroup):
+    edit_key  = State()
+    edit_value = State()
+
 class BroadcastFSM(StatesGroup):
     text    = State()
     confirm = State()
@@ -116,8 +120,35 @@ def main_menu_kb():
     b.button(text="💰 Платежи",           callback_data="adm:payments")
     b.button(text="📣 Рассылка",          callback_data="adm:broadcast")
     b.button(text="📊 Статистика",        callback_data="adm:stats")
-    b.adjust(1, 2, 2, 1)
+    b.button(text="⚙️ Настройки",         callback_data="adm:settings")
+    b.adjust(1, 2, 2, 1, 1)
     return b.as_markup()
+
+
+@router.message(Command("help"))
+async def cmd_help(message: Message, **kwargs):
+    if not is_admin(message.from_user.id):
+        return
+    text = (
+        "📖 <b>Инструкция администратора</b>\n\n"
+        "<b>/admin</b> — открыть панель\n\n"
+        "📅 <b>Добавить занятие</b> — 6 шагов:\n"
+        "название → тренер → дата → время → места → место/оплата\n\n"
+        "💳 <i>Через бота</i> — онлайн оплата ЮKassa\n"
+        "🏢 <i>Через студию</i> — только инфо, без оплаты\n\n"
+        "📋 <b>Расписание</b> — занятия на 14 дней, список клиентов, отмена\n\n"
+        "👥 <b>Клиенты</b>\n"
+        "✅ есть абонемент  ⚠️ нет абонемента\n"
+        "➕ начислить занятия (оплата наличными)\n"
+        "🔥 пнуть — мотивационное сообщение\n\n"
+        "💰 <b>Платежи</b> — история оплат через ЮKassa\n\n"
+        "📣 <b>Рассылка</b> — сообщение всем клиентам\n\n"
+        "⏰ <b>Автоуведомления</b> работают сами:\n"
+        "• за 24 ч и 2 ч до занятия\n"
+        "• пинок за пропуск\n"
+        "• предупреждение об абонементе"
+    )
+    await message.answer(text)
 
 @router.message(Command("admin"))
 async def cmd_admin(message: Message, session: AsyncSession, **kwargs):
@@ -596,6 +627,80 @@ async def cb_stats(call: CallbackQuery, session: AsyncSession, **kwargs):
         reply_markup=b.as_markup(),
     )
     await call.answer()
+
+
+# ═══ НАСТРОЙКИ ═══
+
+SETTINGS_LABELS = {
+    "studio_name":     "🏠 Название студии",
+    "studio_phone":    "📞 Телефон",
+    "studio_address":  "📍 Адрес",
+    "studio_instagram":"📸 Instagram",
+    "studio_schedule": "🕐 Часы работы",
+    "locations":       "📍 Студии/локации (через |)",
+    "trainers":        "👤 Тренеры (через |)",
+    "price_single":    "💰 Цена разовое (₽)",
+    "price_pack_4":    "💰 Цена 4 занятия (₽)",
+    "price_pack_8":    "💰 Цена 8 занятий (₽)",
+}
+
+@router.callback_query(F.data == "adm:settings")
+async def cb_settings(call: CallbackQuery, session: AsyncSession, **kwargs):
+    if not await check_admin(call):
+        return
+    from db.queries import get_all_settings
+    s = await get_all_settings(session)
+    b = InlineKeyboardBuilder()
+    for key, label in SETTINGS_LABELS.items():
+        val = s.get(key, "—")
+        if len(val) > 20:
+            val = val[:20] + "..."
+        b.button(text=f"{label}: {val}", callback_data=f"adm:setedit:{key}")
+    b.button(text="◀️ Назад", callback_data="adm:main")
+    b.adjust(1)
+    await call.message.edit_text("⚙️ <b>Настройки студии</b>\n\nНажми на параметр чтобы изменить:", reply_markup=b.as_markup())
+    await call.answer()
+
+@router.callback_query(F.data.startswith("adm:setedit:"))
+async def cb_settings_edit(call: CallbackQuery, state: FSMContext, session: AsyncSession, **kwargs):
+    if not await check_admin(call):
+        return
+    key = call.data[len("adm:setedit:"):]
+    label = SETTINGS_LABELS.get(key, key)
+    from db.queries import get_setting
+    current = await get_setting(session, key)
+    await state.update_data(edit_key=key)
+    await state.set_state(SettingsFSM.edit_value)
+    hints = ""
+    if key == "locations":
+        hints = "\n\n<i>Пример: Мои занятия|Студия на Ленина|Студия на Маркса</i>"
+    elif key == "trainers":
+        hints = "\n\n<i>Пример: Юлия Николаева|Анна Громова</i>"
+    b = InlineKeyboardBuilder()
+    b.button(text="❌ Отмена", callback_data="adm:settings")
+    b.adjust(1)
+    await call.message.edit_text(
+        f"⚙️ <b>{label}</b>\n\nТекущее значение:\n<code>{current}</code>\n\nВведи новое значение:{hints}",
+        reply_markup=b.as_markup()
+    )
+    await call.answer()
+
+@router.message(SettingsFSM.edit_value)
+async def msg_settings_value(message: Message, state: FSMContext, session: AsyncSession, **kwargs):
+    if not await check_admin(message):
+        return
+    data = await state.get_data()
+    key = data.get("edit_key")
+    value = message.text.strip()
+    await state.clear()
+    from db.queries import set_setting
+    await set_setting(session, key, value)
+    label = SETTINGS_LABELS.get(key, key)
+    b = InlineKeyboardBuilder()
+    b.button(text="⚙️ Назад к настройкам", callback_data="adm:settings")
+    b.button(text="🏠 В меню",             callback_data="adm:main")
+    b.adjust(1)
+    await message.answer(f"✅ <b>{label}</b> обновлено!\n\nНовое значение: <code>{value}</code>", reply_markup=b.as_markup())
 
 @router.callback_query(F.data == "adm:broadcast")
 async def cb_broadcast_start(call: CallbackQuery, state: FSMContext, **kwargs):
