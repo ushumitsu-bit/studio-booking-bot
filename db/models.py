@@ -6,7 +6,7 @@
   classes      — занятия в расписании
   bookings     — записи клиентов на занятия
   subscriptions— абонементы
-  payments     — история платежей через ЮKassa
+  payments     — история платежей через Payme
 """
 
 from datetime import datetime
@@ -120,8 +120,8 @@ class Payment(Base):
     id              = Column(Integer, primary_key=True, autoincrement=True)
     user_id         = Column(BigInteger, ForeignKey("users.id"), nullable=False)
     subscription_id = Column(Integer, ForeignKey("subscriptions.id"), nullable=True)
-    yukassa_id      = Column(String(64), unique=True, nullable=True)  # ID платежа в ЮKassa
-    amount          = Column(Integer, nullable=False)                 # сумма в рублях
+    payme_id        = Column(String(64), unique=True, nullable=True)  # ID транзакции в Payme
+    amount          = Column(Integer, nullable=False)                 # сумма в сумах
     status          = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING)
     description     = Column(Text, nullable=True)
     created_at      = Column(DateTime, default=datetime.utcnow)

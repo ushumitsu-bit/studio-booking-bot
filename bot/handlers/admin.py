@@ -109,7 +109,7 @@ async def build_main_text(session):
         f"🛠 <b>Панель администратора</b>\n\n"
         f"👥 Клиентов: <b>{total_users}</b>  ·  без абонемента: <b>{no_sub}</b>\n"
         f"📅 Занятий сегодня: <b>{today_classes}</b>\n"
-        f"💰 Доход за месяц: <b>{month_income} ₽</b>"
+        f"💰 Доход за месяц: <b>{month_income:,} сум</b>"
     )
 
 def main_menu_kb():
@@ -134,14 +134,14 @@ async def cmd_help(message: Message, **kwargs):
         "<b>/admin</b> — открыть панель\n\n"
         "📅 <b>Добавить занятие</b> — 6 шагов:\n"
         "название → тренер → дата → время → места → место/оплата\n\n"
-        "💳 <i>Через бота</i> — онлайн оплата ЮKassa\n"
+        "💳 <i>Через бота</i> — онлайн оплата Payme\n"
         "🏢 <i>Через студию</i> — только инфо, без оплаты\n\n"
         "📋 <b>Расписание</b> — занятия на 14 дней, список клиентов, отмена\n\n"
         "👥 <b>Клиенты</b>\n"
         "✅ есть абонемент  ⚠️ нет абонемента\n"
         "➕ начислить занятия (оплата наличными)\n"
         "🔥 пнуть — мотивационное сообщение\n\n"
-        "💰 <b>Платежи</b> — история оплат через ЮKassa\n\n"
+        "💰 <b>Платежи</b> — история оплат через Payme\n\n"
         "📣 <b>Рассылка</b> — сообщение всем клиентам\n\n"
         "⏰ <b>Автоуведомления</b> работают сами:\n"
         "• за 24 ч и 2 ч до занятия\n"
@@ -199,7 +199,7 @@ def location_kb():
 
 def payment_type_kb():
     b = InlineKeyboardBuilder()
-    b.button(text="💳 Через бота (ЮKassa)", callback_data="adm:paytype:bot")
+    b.button(text="💳 Через бота (Payme)", callback_data="adm:paytype:bot")
     b.button(text="🏢 Через студию (только инфо)", callback_data="adm:paytype:studio")
     b.adjust(1)
     return b.as_markup()
@@ -753,10 +753,10 @@ async def cb_payments(call: CallbackQuery, session: AsyncSession, **kwargs):
     month_total = await session.scalar(select(func.sum(Payment.amount)).where(Payment.status == PaymentStatus.SUCCEEDED, Payment.paid_at >= month_start)) or 0
     result = await session.execute(select(Payment, User).join(User, Payment.user_id == User.id).where(Payment.status == PaymentStatus.SUCCEEDED).order_by(Payment.paid_at.desc()).limit(15))
     rows = result.all()
-    lines = [f"💰 <b>Платежи</b>  ·  месяц: <b>{month_total} ₽</b>\n"]
+    lines = [f"💰 <b>Платежи</b>  ·  месяц: <b>{month_total:,} сум</b>\n"]
     for pay, u in rows:
         dt = pay.paid_at.strftime("%d.%m %H:%M") if pay.paid_at else "—"
-        lines.append(f"{dt}  {u.full_name[:20]}  <b>{pay.amount} ₽</b>")
+        lines.append(f"{dt}  {u.full_name[:20]}  <b>{pay.amount:,} сум</b>")
     b = InlineKeyboardBuilder()
     b.button(text="← Меню", callback_data="adm:main")
     b.adjust(1)
@@ -779,7 +779,7 @@ async def cb_stats(call: CallbackQuery, session: AsyncSession, **kwargs):
     b.button(text="← Меню", callback_data="adm:main")
     b.adjust(1)
     await call.message.edit_text(
-        f"📊 <b>Статистика</b>\n\n👥 Клиентов: {total_users}\n📋 Абонементов: {active_subs}\n📅 Занятий: {total_cls}\n✅ Записей: {total_bk}\n😔 Пропусков: {missed} ({miss_pct}%)\n💰 Доход: <b>{total_income} ₽</b>",
+        f"📊 <b>Статистика</b>\n\n👥 Клиентов: {total_users}\n📋 Абонементов: {active_subs}\n📅 Занятий: {total_cls}\n✅ Записей: {total_bk}\n😔 Пропусков: {missed} ({miss_pct}%)\n💰 Доход: <b>{total_income:,} сум</b>",
         reply_markup=b.as_markup(),
     )
     await call.answer()
@@ -795,9 +795,9 @@ SETTINGS_LABELS = {
     "studio_schedule": "🕐 Часы работы",
     "locations":       "📍 Студии/локации (через |)",
     "trainers":        "👤 Тренеры (через |)",
-    "price_single":    "💰 Цена разовое (₽)",
-    "price_pack_4":    "💰 Цена 4 занятия (₽)",
-    "price_pack_8":    "💰 Цена 8 занятий (₽)",
+    "price_single":    "💰 Цена разовое (сум)",
+    "price_pack_4":    "💰 Цена 4 занятия (сум)",
+    "price_pack_8":    "💰 Цена 8 занятий (сум)",
 }
 
 @router.callback_query(F.data == "adm:settings")

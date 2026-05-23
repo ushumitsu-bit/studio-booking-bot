@@ -236,19 +236,23 @@ async def create_payment(
     return payment
 
 
-async def set_yukassa_id(session: AsyncSession, payment_id: int, yukassa_id: str):
+async def get_payment_by_id(session: AsyncSession, payment_id: int) -> Optional[Payment]:
+    return await session.get(Payment, payment_id)
+
+
+async def set_payme_id(session: AsyncSession, payment_id: int, payme_id: str):
     await session.execute(
-        update(Payment).where(Payment.id == payment_id).values(yukassa_id=yukassa_id)
+        update(Payment).where(Payment.id == payment_id).values(payme_id=payme_id)
     )
     await session.commit()
 
 
-async def confirm_payment(session: AsyncSession, yukassa_id: str) -> Optional[Payment]:
-    """Вызывается при получении webhook от ЮKassa."""
+async def confirm_payme_payment(session: AsyncSession, payme_id: str) -> Optional[Payment]:
+    """Вызывается при PerformTransaction от Payme."""
     result = await session.execute(
         select(Payment)
         .options(selectinload(Payment.subscription), selectinload(Payment.user))
-        .where(Payment.yukassa_id == yukassa_id)
+        .where(Payment.payme_id == payme_id)
     )
     payment = result.scalar_one_or_none()
     if not payment:
@@ -257,7 +261,6 @@ async def confirm_payment(session: AsyncSession, yukassa_id: str) -> Optional[Pa
     payment.status = PaymentStatus.SUCCEEDED
     payment.paid_at = datetime.utcnow()
 
-    # Активируем абонемент
     sub = payment.subscription
     classes = SUBSCRIPTION_CLASSES[sub.sub_type]
     sub.classes_left = classes
@@ -267,11 +270,11 @@ async def confirm_payment(session: AsyncSession, yukassa_id: str) -> Optional[Pa
     return payment
 
 
-async def get_payment_by_yukassa(session: AsyncSession, yukassa_id: str) -> Optional[Payment]:
-    result = await session.execute(
-        select(Payment).where(Payment.yukassa_id == yukassa_id)
+async def cancel_payme_payment(session: AsyncSession, payme_id: str):
+    await session.execute(
+        update(Payment).where(Payment.payme_id == payme_id).values(status=PaymentStatus.CANCELLED)
     )
-    return result.scalar_one_or_none()
+    await session.commit()
 # ─── Настройки студии ───────────────────────────────────────
 async def get_setting(session, key: str, default: str = "") -> str:
     from sqlalchemy import text

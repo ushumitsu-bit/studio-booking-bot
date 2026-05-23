@@ -196,10 +196,11 @@ class PayReq(BaseModel):
 async def api_pay(req: PayReq, x_user_id: str = Header("0")):
     tg_id = int(x_user_id) if x_user_id.isdigit() else 0
     from db.models import SubscriptionType
-    from services.yukassa import create_yukassa_payment
-    from db.queries import create_payment, set_yukassa_id
+    from services.payme import make_payment_url
+    from db.queries import create_payment
+    from config import settings as cfg
     plan_map = {"single": SubscriptionType.SINGLE, "four": SubscriptionType.PACK_4, "eight": SubscriptionType.PACK_8}
-    price_map = {"single": 1200, "four": 4200, "eight": 6400}
+    price_map = {"single": cfg.PRICE_SINGLE, "four": cfg.PRICE_4_CLASSES, "eight": cfg.PRICE_8_CLASSES}
     desc_map = {"single": "Разовое занятие", "four": "Абонемент 4 занятия", "eight": "Абонемент 8 занятий"}
     sub_type = plan_map.get(req.plan)
     if not sub_type:
@@ -210,9 +211,5 @@ async def api_pay(req: PayReq, x_user_id: str = Header("0")):
         if not user:
             return {"error": "Пользователь не найден"}
         payment = await create_payment(session, tg_id, price_map[req.plan], desc_map[req.plan], sub_type)
-        try:
-            res = await create_yukassa_payment(price_map[req.plan], desc_map[req.plan], payment.id, tg_id)
-            await set_yukassa_id(session, payment.id, res["yukassa_id"])
-            return {"payment_url": res["payment_url"]}
-        except Exception as e:
-            return {"error": str(e)}
+        payment_url = make_payment_url(payment.id, price_map[req.plan])
+        return {"payment_url": payment_url}

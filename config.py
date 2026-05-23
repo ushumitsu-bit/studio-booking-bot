@@ -13,19 +13,19 @@ class Settings(BaseSettings):
     # Redis (FSM storage)
     REDIS_URL: str = "redis://localhost:6379"
 
-    # ЮKassa
-    YUKASSA_SHOP_ID: str
-    YUKASSA_SECRET_KEY: str
-    YUKASSA_RETURN_URL: str            # URL после оплаты (можно t.me/your_bot)
+    # Payme Business
+    PAYME_MERCHANT_ID: str             # Merchant ID из личного кабинета Payme
+    PAYME_SECRET_KEY: str              # Секретный ключ (TEST или PROD)
+    PAYME_RETURN_URL: str = ""         # URL после оплаты (можно t.me/your_bot)
 
-    # Webhook для ЮKassa (куда Kassa шлёт уведомления об оплате)
+    # Webhook для Payme (куда Payme шлёт JSON-RPC уведомления)
     WEBHOOK_HOST: str                  # https://yourdomain.com
-    WEBHOOK_PATH: str = "/yukassa/webhook"
+    WEBHOOK_PATH: str = "/payme/webhook"
 
-    # Цены (в рублях)
-    PRICE_SINGLE: int = 1200
-    PRICE_4_CLASSES: int = 4200
-    PRICE_8_CLASSES: int = 6400
+    # Цены (в сумах)
+    PRICE_SINGLE: int = 150000
+    PRICE_4_CLASSES: int = 500000
+    PRICE_8_CLASSES: int = 800000
 
     # Посещаемость — секрет для подписи QR-токенов
     ATTENDANCE_SECRET: str = "change-me-attendance-secret"

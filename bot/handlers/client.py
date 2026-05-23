@@ -54,7 +54,7 @@ async def cmd_start(message: Message, db_user: User, **kwargs):
         f"Я помогу тебе:\n"
         f"📅 Посмотреть расписание занятий\n"
         f"✏️ Записаться и отменить запись\n"
-        f"💳 Оплатить абонемент через ЮKassa\n"
+        f"💳 Оплатить абонемент через Payme\n"
         f"📊 Следить за своим абонементом\n\n"
         f"Выбери что тебя интересует 👇"
     )
@@ -435,7 +435,7 @@ async def my_subscription(event, session: AsyncSession, db_user: User, **kwargs)
     if not sub:
         text = (
             "💳 <b>Активного абонемента нет.</b>\n\n"
-            "Купи абонемент прямо здесь — быстро и безопасно через ЮKassa 👇"
+            "Купи абонемент прямо здесь — быстро и безопасно через Payme 👇"
         )
         b.button(text="💳 Купить абонемент", callback_data="pay")
     else:
