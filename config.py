@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     PRICE_4_CLASSES: int = 4200
     PRICE_8_CLASSES: int = 6400
 
+    # Посещаемость — секрет для подписи QR-токенов
+    ATTENDANCE_SECRET: str = "change-me-attendance-secret"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

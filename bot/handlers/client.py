@@ -21,6 +21,7 @@ from db.queries import (
     get_class_by_id,
     get_upcoming_classes,
     get_user_upcoming_bookings,
+    SUBSCRIPTION_CLASSES,
 )
 
 router = Router()
@@ -71,15 +72,13 @@ async def cb_menu(call: CallbackQuery, db_user: User, **kwargs):
 
 
 def _main_menu_kb():
-    from aiogram.types import InlineKeyboardButton, WebAppInfo
+    from aiogram.types import WebAppInfo
     b = InlineKeyboardBuilder()
     b.button(text="🌐 Открыть приложение", web_app=WebAppInfo(url="https://pilates.fapass.xyz/miniapp/"))
-    b.button(text="📅 Расписание",          callback_data="schedule:0")
-    b.button(text="✏️ Записаться",           callback_data="book")
-    b.button(text="🗓 Мои записи",           callback_data="my_bookings")
-    b.button(text="💳 Оплатить абонемент",   callback_data="pay")
-    b.button(text="📊 Мой абонемент",        callback_data="my_sub")
-    b.button(text="📞 Контакты",             callback_data="contacts")
+    b.button(text="📅 Расписание",        callback_data="schedule:0")
+    b.button(text="🗓 Мои записи",        callback_data="my_bookings")
+    b.button(text="💳 Абонемент",         callback_data="my_sub")
+    b.button(text="📞 Контакты",          callback_data="contacts")
     b.adjust(1)
     return b.as_markup()
 
@@ -102,7 +101,7 @@ async def show_schedule(event, session: AsyncSession, db_user: User, **kwargs):
     if not classes:
         text = "😔 На ближайшие 2 недели занятий нет.\n\nСледи за обновлениями!"
         b = InlineKeyboardBuilder()
-        b.button(text="◀️ В меню", callback_data="menu")
+        b.button(text="← Меню", callback_data="menu")
         b.adjust(1)
         if isinstance(event, CallbackQuery):
             await event.message.edit_text(text, reply_markup=b.as_markup())
@@ -185,14 +184,14 @@ async def show_schedule(event, session: AsyncSession, db_user: User, **kwargs):
         is_booked = cls.id in booked_class_ids
 
         if is_booked:
-            b.button(text=f"❌ Отменить {cls.starts_at.strftime('%H:%M')}", callback_data=f"cancel_from_schedule:{cls.id}")
+            b.button(text=f"✅ Записана {cls.starts_at.strftime('%H:%M')} — отменить", callback_data=f"cancel_from_schedule:{cls.id}")
         elif free > 0:
-            b.button(text=f"✏️ Записаться {cls.starts_at.strftime('%H:%M')}", callback_data=f"book_{cls.id}")
+            b.button(text=f"🟢 Записаться {cls.starts_at.strftime('%H:%M')}", callback_data=f"book_{cls.id}")
         else:
-            b.button(text=f"🔴 {cls.starts_at.strftime('%H:%M')} нет мест", callback_data="full")
+            b.button(text=f"🔴 {cls.starts_at.strftime('%H:%M')} — мест нет", callback_data="full")
         b.adjust(1)
 
-    b.button(text="◀️ В меню", callback_data="menu")
+    b.button(text="← Меню", callback_data="menu")
     b.adjust(1)
 
     if isinstance(event, CallbackQuery):
@@ -213,7 +212,7 @@ async def show_booking_list(call: CallbackQuery, session: AsyncSession, db_user:
 
     if not available:
         b = InlineKeyboardBuilder()
-        b.button(text="◀️ В меню", callback_data="menu")
+        b.button(text="← Меню", callback_data="menu")
         b.adjust(1)
         await call.message.edit_text(
             "😔 Свободных мест нет. Загляни позже или следи за расписанием!",
@@ -230,10 +229,10 @@ async def show_booking_list(call: CallbackQuery, session: AsyncSession, db_user:
         spots     = cls.free_spots
         spots_icon = "🟢" if spots > 2 else "🟡"
         b.button(
-            text=f"{spots_icon} {day_name} {day_label} {cls.starts_at.strftime('%H:%M')} — {cls.title[:20]} ({spots} мест)",
+            text=f"{spots_icon} {day_name} {day_label} {cls.starts_at.strftime('%H:%M')} — {cls.title[:20]}",
             callback_data=f"book_{cls.id}",
         )
-    b.button(text="◀️ В меню", callback_data="menu")
+    b.button(text="← Меню", callback_data="menu")
     b.adjust(1)
 
     await call.message.edit_text("✏️ <b>Выбери занятие:</b>", reply_markup=b.as_markup())
@@ -275,7 +274,7 @@ async def confirm_booking_prompt(call: CallbackQuery, session: AsyncSession, db_
         b.button(text="✅ Записаться", callback_data=f"confirm_book_{class_id}")
     else:
         b.button(text="💳 Купить абонемент", callback_data="pay")
-    b.button(text="◀️ Назад", callback_data="book")
+    b.button(text="← Расписание", callback_data="schedule:0")
     b.adjust(1)
 
     await call.message.edit_text(
@@ -302,8 +301,8 @@ async def do_booking(call: CallbackQuery, session: AsyncSession, db_user: User, 
     await decrement_subscription(session, db_user.id)
 
     b = InlineKeyboardBuilder()
-    b.button(text="📅 Моё расписание", callback_data="my_bookings")
-    b.button(text="🏠 В меню",         callback_data="menu")
+    b.button(text="🗓 Мои записи", callback_data="my_bookings")
+    b.button(text="← Меню", callback_data="menu")
     b.adjust(1)
 
     await call.message.edit_text(
@@ -324,11 +323,19 @@ async def cancel_from_schedule(call: CallbackQuery, session: AsyncSession, db_us
     if not existing:
         await call.answer("Запись не найдена", show_alert=True)
         return
-    await cancel_booking(session, existing.id)
-    await call.answer("❌ Запись отменена", show_alert=True)
-    # Обновляем расписание
-    call.data = "schedule:0"
-    await show_schedule(call, session=session, db_user=db_user)
+    cls = await get_class_by_id(session, class_id)
+    b = InlineKeyboardBuilder()
+    b.button(text="✅ Да, отменить", callback_data=f"confirm_cancel_{existing.id}")
+    b.button(text="← Назад", callback_data="schedule:0")
+    b.adjust(1)
+    await call.message.edit_text(
+        f"Отменить запись?\n\n"
+        f"🧘 {cls.title}\n"
+        f"📅 {cls.starts_at.strftime('%d.%m.%Y в %H:%M')}\n"
+        f"👤 {cls.trainer}",
+        reply_markup=b.as_markup(),
+    )
+    await call.answer()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -365,7 +372,7 @@ async def my_bookings(event, session: AsyncSession, db_user: User, **kwargs):
                 text=f"❌ Отменить {bk.cls.starts_at.strftime('%d.%m %H:%M')} {bk.cls.title[:15]}",
                 callback_data=f"cancel_booking_{bk.id}",
             )
-        b.button(text="🏠 В меню", callback_data="menu")
+        b.button(text="← Меню", callback_data="menu")
         b.adjust(1)
 
     if isinstance(event, CallbackQuery):
@@ -378,11 +385,34 @@ async def my_bookings(event, session: AsyncSession, db_user: User, **kwargs):
 @router.callback_query(F.data.startswith("cancel_booking_"))
 async def cancel_booking_cb(call: CallbackQuery, session: AsyncSession, **kwargs):
     booking_id = int(call.data.split("_")[2])
+    from db.models import Booking as BookingModel
+    bk = await session.get(BookingModel, booking_id)
+    if not bk:
+        await call.answer("Запись не найдена", show_alert=True)
+        return
+    cls = await get_class_by_id(session, bk.class_id)
+    b = InlineKeyboardBuilder()
+    b.button(text="✅ Да, отменить", callback_data=f"confirm_cancel_{booking_id}")
+    b.button(text="← Назад", callback_data="my_bookings")
+    b.adjust(1)
+    await call.message.edit_text(
+        f"Отменить запись?\n\n"
+        f"🧘 {cls.title}\n"
+        f"📅 {cls.starts_at.strftime('%d.%m.%Y в %H:%M')}\n"
+        f"👤 {cls.trainer}",
+        reply_markup=b.as_markup(),
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("confirm_cancel_"))
+async def confirm_cancel_cb(call: CallbackQuery, session: AsyncSession, **kwargs):
+    booking_id = int(call.data.split("_")[2])
     await cancel_booking(session, booking_id)
 
     b = InlineKeyboardBuilder()
     b.button(text="📅 Расписание", callback_data="schedule:0")
-    b.button(text="🏠 В меню",    callback_data="menu")
+    b.button(text="← Меню", callback_data="menu")
     b.adjust(1)
 
     await call.message.edit_text(
@@ -410,9 +440,9 @@ async def my_subscription(event, session: AsyncSession, db_user: User, **kwargs)
         b.button(text="💳 Купить абонемент", callback_data="pay")
     else:
         expires = sub.expires_at.strftime("%d.%m.%Y") if sub.expires_at else "без ограничений"
-        # Прогресс-бар
-        used = sub.total - sub.classes_left if hasattr(sub, "total") else 0
-        bar = "🟩" * sub.classes_left + "⬜" * used if sub.classes_left <= 8 else ""
+        total = SUBSCRIPTION_CLASSES.get(sub.sub_type, sub.classes_left)
+        used = total - sub.classes_left
+        bar = "🟩" * sub.classes_left + "⬜" * used
 
         text = (
             f"📊 <b>Твой абонемент</b>\n\n"
@@ -421,11 +451,10 @@ async def my_subscription(event, session: AsyncSession, db_user: User, **kwargs)
             f"📅 Действует до: <b>{expires}</b>\n\n"
             f"Записывайся на занятия пока есть места! 🧘"
         )
-        b.button(text="📅 Записаться", callback_data="schedule:0")
-        if sub.classes_left <= 2:
-            b.button(text="💳 Продлить абонемент", callback_data="pay")
+        b.button(text="📅 Расписание", callback_data="schedule:0")
+        b.button(text="💳 Купить ещё", callback_data="pay")
 
-    b.button(text="🏠 В меню", callback_data="menu")
+    b.button(text="← Меню", callback_data="menu")
     b.adjust(1)
 
     if isinstance(event, CallbackQuery):
@@ -442,7 +471,7 @@ async def my_subscription(event, session: AsyncSession, db_user: User, **kwargs)
 @router.callback_query(F.data == "contacts")
 async def contacts(call: CallbackQuery, **kwargs):
     b = InlineKeyboardBuilder()
-    b.button(text="🏠 В меню", callback_data="menu")
+    b.button(text="← Меню", callback_data="menu")
     b.adjust(1)
     await call.message.edit_text(
         "📍 <b>Студия пилатеса</b>\n\n"

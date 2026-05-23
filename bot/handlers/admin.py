@@ -50,7 +50,7 @@ def calendar_kb(year: int, month: int):
     if remainder:
         for _ in range(7 - remainder):
             b.button(text=" ", callback_data="adm:cal:ignore")
-    b.button(text="◀️ Назад", callback_data="adm:addclass")
+    b.button(text="← Назад", callback_data="adm:addclass")
     b.adjust(3, 7, 7, 7, 7, 7, 7, 7, 7, 1)
     return b.as_markup()
 
@@ -170,7 +170,7 @@ def templates_kb():
     for t in CLASS_TEMPLATES:
         b.button(text=t, callback_data=f"adm:title:{t[:40]}")
     b.button(text="✏️ Своё название", callback_data="adm:title:custom")
-    b.button(text="◀️ Назад",         callback_data="adm:main")
+    b.button(text="← Меню",         callback_data="adm:main")
     b.adjust(1)
     return b.as_markup()
 
@@ -377,7 +377,7 @@ async def _save_class(msg, state, session, spots, edit):
     pay_label = "💳 через бота" if payment_enabled else "🏢 через студию"
     b = InlineKeyboardBuilder()
     b.button(text="📅 Ещё занятие", callback_data="adm:addclass")
-    b.button(text="🏠 В меню",      callback_data="adm:main")
+    b.button(text="← Меню",      callback_data="adm:main")
     b.adjust(2)
     text = f"✅ <b>Занятие добавлено!</b>\n\n🧘 {cls.title}\n📅 {cls.starts_at.strftime('%d.%m.%Y в %H:%M')}\n👤 {cls.trainer}\n📍 {cls.location}\n💳 Оплата: {pay_label}\n👥 Мест: {cls.max_spots}"
     if edit:
@@ -395,7 +395,7 @@ async def cb_schedule(call: CallbackQuery, session: AsyncSession, **kwargs):
     b = InlineKeyboardBuilder()
     if not classes:
         b.button(text="📅 Добавить занятие", callback_data="adm:addclass")
-        b.button(text="◀️ Назад", callback_data="adm:main")
+        b.button(text="← Меню", callback_data="adm:main")
         b.adjust(1)
         await call.message.edit_text("На ближайшие 2 недели занятий нет.", reply_markup=b.as_markup())
         await call.answer()
@@ -405,7 +405,7 @@ async def cb_schedule(call: CallbackQuery, session: AsyncSession, **kwargs):
         pay_icon = "💳" if getattr(cls, "payment_enabled", True) else "🏢"
         b.button(text=f"{pay_icon} {cls.starts_at.strftime('%d.%m %H:%M')} {cls.title[:15]} ({cnt}/{cls.max_spots})", callback_data=f"adm:cls:{cls.id}")
     b.button(text="📅 Добавить", callback_data="adm:addclass")
-    b.button(text="◀️ Назад",    callback_data="adm:main")
+    b.button(text="← Меню",    callback_data="adm:main")
     b.adjust(1)
     await call.message.edit_text("📋 <b>Расписание — 14 дней</b>\n\n💳 = через бота  🏢 = через студию", reply_markup=b.as_markup())
     await call.answer()
@@ -415,24 +415,161 @@ async def cb_class_detail(call: CallbackQuery, session: AsyncSession, **kwargs):
     if not await check_admin(call):
         return
     cls_id = int(call.data[len("adm:cls:"):])
+    await _show_class_detail(call, session, cls_id)
+
+async def _show_class_detail(call: CallbackQuery, session: AsyncSession, cls_id: int):
     cls = await session.get(Class, cls_id)
     if not cls:
         await call.answer("Не найдено", show_alert=True)
         return
-    result = await session.execute(select(Booking, User).join(User, Booking.user_id == User.id).where(Booking.class_id == cls_id, Booking.status == BookingStatus.CONFIRMED))
+
+    result = await session.execute(
+        select(Booking, User)
+        .join(User, Booking.user_id == User.id)
+        .where(Booking.class_id == cls_id, Booking.status.in_([
+            BookingStatus.CONFIRMED, BookingStatus.ATTENDED
+        ]))
+    )
     rows = result.all()
-    names = "\n".join(f"  • {u.full_name}" for _, u in rows) if rows else "  (никто не записан)"
+
+    STATUS_ICON = {BookingStatus.CONFIRMED: "⬜", BookingStatus.ATTENDED: "✅"}
+    attended = sum(1 for bk, _ in rows if bk.status == BookingStatus.ATTENDED)
+    confirmed = sum(1 for bk, _ in rows if bk.status == BookingStatus.CONFIRMED)
+
+    roster = "\n".join(
+        f"  {STATUS_ICON.get(bk.status,'⬜')} {u.full_name}"
+        for bk, u in rows
+    ) if rows else "  (никто не записан)"
+
     pay_label = "💳 через бота" if getattr(cls, "payment_enabled", True) else "🏢 через студию"
-    location = getattr(cls, "location", "—")
+    location  = getattr(cls, "location", "—")
+
     b = InlineKeyboardBuilder()
+    b.button(text="📱 QR явка",          callback_data=f"adm:qr:{cls_id}")
+    b.button(text="✅ Отметить вручную", callback_data=f"adm:roster:{cls_id}")
     b.button(text="❌ Отменить занятие", callback_data=f"adm:cancel_cls:{cls_id}")
-    b.button(text="◀️ К расписанию",    callback_data="adm:schedule")
-    b.adjust(1)
+    b.button(text="← Расписание",       callback_data="adm:schedule")
+    b.adjust(2, 1, 1)
+
     await call.message.edit_text(
-        f"📌 <b>{cls.title}</b>\n📅 {cls.starts_at.strftime('%d.%m.%Y %H:%M')}\n👤 {cls.trainer}\n📍 {location}\n💳 {pay_label}\n👥 {len(rows)}/{cls.max_spots}\n\n{names}",
+        f"📌 <b>{cls.title}</b>\n"
+        f"📅 {cls.starts_at.strftime('%d.%m.%Y %H:%M')}\n"
+        f"👤 {cls.trainer} · 📍 {location}\n"
+        f"💳 {pay_label}\n"
+        f"👥 Всего: {len(rows)}/{cls.max_spots}  ·  ✅ пришли: {attended}  ·  ⬜ ожидаем: {confirmed}\n\n"
+        f"{roster}",
         reply_markup=b.as_markup(),
     )
     await call.answer()
+
+
+@router.callback_query(F.data.startswith("adm:qr:"))
+async def cb_class_qr(call: CallbackQuery, session: AsyncSession, **kwargs):
+    if not await check_admin(call):
+        return
+    from services.attendance import qr_url
+    import qrcode, io
+    from aiogram.types import BufferedInputFile
+
+    cls_id = int(call.data[len("adm:qr:"):])
+    cls = await session.get(Class, cls_id)
+    if not cls:
+        await call.answer("Не найдено", show_alert=True)
+        return
+
+    url = qr_url(cls_id)
+    img = qrcode.make(url)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+
+    await call.answer()
+    await call.message.answer_photo(
+        BufferedInputFile(buf.read(), filename="qr.png"),
+        caption=(
+            f"📱 <b>QR для явки</b>\n\n"
+            f"🧘 {cls.title}\n"
+            f"📅 {cls.starts_at.strftime('%d.%m.%Y %H:%M')}\n\n"
+            f"Покажи этот QR студентам — они отсканируют в Telegram.\n"
+            f"<i>Действителен 2 часа после начала занятия.</i>"
+        ),
+    )
+
+
+@router.callback_query(F.data.startswith("adm:roster:"))
+async def cb_roster(call: CallbackQuery, session: AsyncSession, **kwargs):
+    if not await check_admin(call):
+        return
+    cls_id = int(call.data[len("adm:roster:"):])
+    cls = await session.get(Class, cls_id)
+    if not cls:
+        await call.answer("Не найдено", show_alert=True)
+        return
+
+    result = await session.execute(
+        select(Booking, User)
+        .join(User, Booking.user_id == User.id)
+        .where(Booking.class_id == cls_id, Booking.status.in_([
+            BookingStatus.CONFIRMED, BookingStatus.ATTENDED
+        ]))
+    )
+    rows = result.all()
+
+    b = InlineKeyboardBuilder()
+    for bk, u in rows:
+        if bk.status == BookingStatus.CONFIRMED:
+            b.button(
+                text=f"⬜ {u.full_name[:28]}",
+                callback_data=f"adm:mark:{bk.id}:{cls_id}",
+            )
+        else:
+            b.button(
+                text=f"✅ {u.full_name[:28]}",
+                callback_data=f"adm:unmark:{bk.id}:{cls_id}",
+            )
+    b.button(text="← К занятию", callback_data=f"adm:cls:{cls_id}")
+    b.adjust(1)
+
+    await call.message.edit_text(
+        f"✅ <b>Ручная отметка явки</b>\n\n"
+        f"🧘 {cls.title} · {cls.starts_at.strftime('%d.%m %H:%M')}\n\n"
+        f"Нажми на студента чтобы отметить / снять явку:",
+        reply_markup=b.as_markup(),
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("adm:mark:"))
+async def cb_mark_attended(call: CallbackQuery, session: AsyncSession, **kwargs):
+    if not await check_admin(call):
+        return
+    parts   = call.data.split(":")
+    bk_id   = int(parts[2])
+    cls_id  = int(parts[3])
+    booking = await session.get(Booking, bk_id)
+    if booking:
+        booking.status = BookingStatus.ATTENDED
+        await session.commit()
+    await call.answer("✅ Отмечено")
+    # обновляем ростер
+    call.data = f"adm:roster:{cls_id}"
+    await cb_roster(call, session=session)
+
+
+@router.callback_query(F.data.startswith("adm:unmark:"))
+async def cb_unmark_attended(call: CallbackQuery, session: AsyncSession, **kwargs):
+    if not await check_admin(call):
+        return
+    parts   = call.data.split(":")
+    bk_id   = int(parts[2])
+    cls_id  = int(parts[3])
+    booking = await session.get(Booking, bk_id)
+    if booking:
+        booking.status = BookingStatus.CONFIRMED
+        await session.commit()
+    await call.answer("↩️ Снято")
+    call.data = f"adm:roster:{cls_id}"
+    await cb_roster(call, session=session)
 
 @router.callback_query(F.data.startswith("adm:cancel_cls:"))
 async def cb_cancel_class(call: CallbackQuery, session: AsyncSession, **kwargs):
@@ -454,7 +591,7 @@ async def cb_cancel_class(call: CallbackQuery, session: AsyncSession, **kwargs):
     cls.is_cancelled = True
     await session.commit()
     b = InlineKeyboardBuilder()
-    b.button(text="◀️ К расписанию", callback_data="adm:schedule")
+    b.button(text="← Расписание", callback_data="adm:schedule")
     b.adjust(1)
     await call.message.edit_text(f"✅ Занятие отменено. Уведомлено: {len(bookings)}", reply_markup=b.as_markup())
     await call.answer()
@@ -478,7 +615,7 @@ async def cb_clients(call: CallbackQuery, session: AsyncSession, **kwargs):
         b.button(text="◀ Пред.", callback_data=f"adm:clients:{page-1}")
     if has_next:
         b.button(text="След. ▶", callback_data=f"adm:clients:{page+1}")
-    b.button(text="🏠 Меню", callback_data="adm:main")
+    b.button(text="← Меню", callback_data="adm:main")
     b.adjust(1)
     await call.message.edit_text(f"👥 <b>Клиенты</b> — {total} чел.", reply_markup=b.as_markup())
     await call.answer()
@@ -502,7 +639,7 @@ async def cb_user_card(call: CallbackQuery, session: AsyncSession, **kwargs):
     b.button(text="🔥 Пнуть",            callback_data=f"adm:kick:{uid}")
     b.button(text="📋 История записей",  callback_data=f"adm:bkhistory:{uid}")
     b.button(text="🚫 Заблокировать",    callback_data=f"adm:block:{uid}")
-    b.button(text="◀️ К списку",         callback_data="adm:clients:0")
+    b.button(text="← Клиенты",         callback_data="adm:clients:0")
     b.adjust(2, 2, 1)
     await call.message.edit_text(
         f"👤 <b>{u.full_name}</b>\n@{u.username or '—'}  ·  <code>{u.id}</code>\n\n{sub_text}\nЗанятий: {total_bk}  ·  пропусков: {missed}",
@@ -519,7 +656,7 @@ async def cb_give(call: CallbackQuery, session: AsyncSession, **kwargs):
     b = InlineKeyboardBuilder()
     for n in [1, 2, 4, 8]:
         b.button(text=f"+{n}", callback_data=f"adm:gn:{uid}:{n}")
-    b.button(text="◀️ Назад", callback_data=f"adm:user:{uid}")
+    b.button(text="← Назад", callback_data=f"adm:user:{uid}")
     b.adjust(4, 1)
     await call.message.edit_text("➕ <b>Начислить занятия</b>\n\nСколько добавить?", reply_markup=b.as_markup())
     await call.answer()
@@ -543,7 +680,7 @@ async def cb_give_n(call: CallbackQuery, session: AsyncSession, **kwargs):
     except Exception:
         pass
     b = InlineKeyboardBuilder()
-    b.button(text="◀️ К клиенту", callback_data=f"adm:user:{uid}")
+    b.button(text="← К клиенту", callback_data=f"adm:user:{uid}")
     b.adjust(1)
     await call.message.edit_text(f"✅ +{n} занятий для <b>{u.full_name}</b>", reply_markup=b.as_markup())
     await call.answer()
@@ -567,11 +704,30 @@ async def cb_block(call: CallbackQuery, session: AsyncSession, **kwargs):
         return
     uid = int(call.data[len("adm:block:"):])
     u = await session.get(User, uid)
+    b = InlineKeyboardBuilder()
+    b.button(text="🚫 Да, заблокировать", callback_data=f"adm:block_confirm:{uid}")
+    b.button(text="← Назад", callback_data=f"adm:user:{uid}")
+    b.adjust(1)
+    await call.message.edit_text(
+        f"Заблокировать <b>{u.full_name}</b>?\n\nПользователь потеряет доступ к боту.",
+        reply_markup=b.as_markup(),
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("adm:block_confirm:"))
+async def cb_block_confirm(call: CallbackQuery, session: AsyncSession, **kwargs):
+    if not await check_admin(call):
+        return
+    uid = int(call.data[len("adm:block_confirm:"):])
+    u = await session.get(User, uid)
     u.is_active = False
     await session.commit()
-    await call.answer(f"🚫 {u.full_name} заблокирован", show_alert=True)
-    call.data = f"adm:user:{uid}"
-    await cb_user_card(call, session=session)
+    b = InlineKeyboardBuilder()
+    b.button(text="← К списку клиентов", callback_data="adm:clients:0")
+    b.adjust(1)
+    await call.message.edit_text(f"🚫 <b>{u.full_name}</b> заблокирован.", reply_markup=b.as_markup())
+    await call.answer()
 
 @router.callback_query(F.data.startswith("adm:bkhistory:"))
 async def cb_bk_history(call: CallbackQuery, session: AsyncSession, **kwargs):
@@ -583,7 +739,7 @@ async def cb_bk_history(call: CallbackQuery, session: AsyncSession, **kwargs):
     STATUS = {BookingStatus.CONFIRMED: "✅", BookingStatus.CANCELLED: "❌", BookingStatus.MISSED: "😔", BookingStatus.ATTENDED: "✔️"}
     lines = [f"{STATUS.get(bk.status,'?')} {cls.starts_at.strftime('%d.%m %H:%M')} {cls.title[:20]}" for bk, cls in rows] or ["Записей нет"]
     b = InlineKeyboardBuilder()
-    b.button(text="◀️ Назад", callback_data=f"adm:user:{uid}")
+    b.button(text="← Назад", callback_data=f"adm:user:{uid}")
     b.adjust(1)
     await call.message.edit_text("<b>История (последние 10):</b>\n\n" + "\n".join(lines), reply_markup=b.as_markup())
     await call.answer()
@@ -602,7 +758,7 @@ async def cb_payments(call: CallbackQuery, session: AsyncSession, **kwargs):
         dt = pay.paid_at.strftime("%d.%m %H:%M") if pay.paid_at else "—"
         lines.append(f"{dt}  {u.full_name[:20]}  <b>{pay.amount} ₽</b>")
     b = InlineKeyboardBuilder()
-    b.button(text="◀️ Меню", callback_data="adm:main")
+    b.button(text="← Меню", callback_data="adm:main")
     b.adjust(1)
     await call.message.edit_text("\n".join(lines), reply_markup=b.as_markup())
     await call.answer()
@@ -620,7 +776,7 @@ async def cb_stats(call: CallbackQuery, session: AsyncSession, **kwargs):
     total_income = await session.scalar(select(func.sum(Payment.amount)).where(Payment.status == PaymentStatus.SUCCEEDED)) or 0
     miss_pct = round(missed / total_bk * 100) if total_bk else 0
     b = InlineKeyboardBuilder()
-    b.button(text="◀️ Меню", callback_data="adm:main")
+    b.button(text="← Меню", callback_data="adm:main")
     b.adjust(1)
     await call.message.edit_text(
         f"📊 <b>Статистика</b>\n\n👥 Клиентов: {total_users}\n📋 Абонементов: {active_subs}\n📅 Занятий: {total_cls}\n✅ Записей: {total_bk}\n😔 Пропусков: {missed} ({miss_pct}%)\n💰 Доход: <b>{total_income} ₽</b>",
@@ -656,7 +812,7 @@ async def cb_settings(call: CallbackQuery, session: AsyncSession, **kwargs):
         if len(val) > 20:
             val = val[:20] + "..."
         b.button(text=f"{label}: {val}", callback_data=f"adm:setedit:{key}")
-    b.button(text="◀️ Назад", callback_data="adm:main")
+    b.button(text="← Меню", callback_data="adm:main")
     b.adjust(1)
     await call.message.edit_text("⚙️ <b>Настройки студии</b>\n\nНажми на параметр чтобы изменить:", reply_markup=b.as_markup())
     await call.answer()
@@ -697,8 +853,8 @@ async def msg_settings_value(message: Message, state: FSMContext, session: Async
     await set_setting(session, key, value)
     label = SETTINGS_LABELS.get(key, key)
     b = InlineKeyboardBuilder()
-    b.button(text="⚙️ Назад к настройкам", callback_data="adm:settings")
-    b.button(text="🏠 В меню",             callback_data="adm:main")
+    b.button(text="← Настройки", callback_data="adm:settings")
+    b.button(text="← Меню",             callback_data="adm:main")
     b.adjust(1)
     await message.answer(f"✅ <b>{label}</b> обновлено!\n\nНовое значение: <code>{value}</code>", reply_markup=b.as_markup())
 
@@ -737,7 +893,7 @@ async def cb_broadcast_go(call: CallbackQuery, session: AsyncSession, state: FSM
         except Exception:
             failed += 1
     b = InlineKeyboardBuilder()
-    b.button(text="🏠 Меню", callback_data="adm:main")
+    b.button(text="← Меню", callback_data="adm:main")
     b.adjust(1)
     await call.message.edit_text(f"📣 <b>Готово!</b>\n\n✅ Отправлено: {sent}\n❌ Ошибок: {failed}", reply_markup=b.as_markup())
     await call.answer()

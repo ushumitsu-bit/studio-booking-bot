@@ -10,6 +10,7 @@ from db.queries import (
     cancel_booking, get_booking, decrement_subscription,
     SUBSCRIPTION_CLASSES,
 )
+from services.attendance import verify_token
 
 router = APIRouter(prefix="/miniapp/api")
 MONTHS_SHORT = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"]
@@ -149,6 +150,44 @@ async def api_subscription(x_user_id: str = Header("0")):
             return {"classes_left": 0, "total": 0, "used": 0}
         total = SUBSCRIPTION_CLASSES.get(sub.sub_type, sub.classes_left)
         return {"classes_left": sub.classes_left, "total": total, "used": total - sub.classes_left}
+
+class AttendReq(BaseModel):
+    token: str
+
+@router.post("/attend")
+async def api_attend(req: AttendReq, x_user_id: str = Header("0")):
+    tg_id = int(x_user_id) if x_user_id.isdigit() else 0
+    if not tg_id:
+        return {"ok": False, "error": "Не авторизован"}
+
+    class_id = verify_token(req.token)
+    if not class_id:
+        return {"ok": False, "error": "QR-код недействителен или устарел"}
+
+    async with AsyncSessionFactory() as session:
+        result = await session.execute(select(User).where(User.id == tg_id))
+        user = result.scalar_one_or_none()
+        if not user:
+            return {"ok": False, "error": "Пользователь не найден"}
+
+        bk_result = await session.execute(
+            select(Booking).where(
+                Booking.user_id == tg_id,
+                Booking.class_id == class_id,
+            )
+        )
+        booking = bk_result.scalar_one_or_none()
+        if not booking:
+            return {"ok": False, "error": "У тебя нет записи на это занятие"}
+        if booking.status == BookingStatus.ATTENDED:
+            return {"ok": True, "already": True, "message": "Ты уже отмечена"}
+        if booking.status == BookingStatus.CANCELLED:
+            return {"ok": False, "error": "Запись отменена"}
+
+        booking.status = BookingStatus.ATTENDED
+        await session.commit()
+        return {"ok": True, "already": False, "message": "Явка отмечена!"}
+
 
 class PayReq(BaseModel):
     plan: str
