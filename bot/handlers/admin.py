@@ -788,16 +788,17 @@ async def cb_stats(call: CallbackQuery, session: AsyncSession, **kwargs):
 # ═══ НАСТРОЙКИ ═══
 
 SETTINGS_LABELS = {
-    "studio_name":     "🏠 Название студии",
-    "studio_phone":    "📞 Телефон",
-    "studio_address":  "📍 Адрес",
-    "studio_instagram":"📸 Instagram",
-    "studio_schedule": "🕐 Часы работы",
-    "locations":       "📍 Студии/локации (через |)",
-    "trainers":        "👤 Тренеры (через |)",
-    "price_single":    "💰 Цена разовое (сум)",
-    "price_pack_4":    "💰 Цена 4 занятия (сум)",
-    "price_pack_8":    "💰 Цена 8 занятий (сум)",
+    "studio_name":      "🏠 Название студии",
+    "studio_phone":     "📞 Телефон",
+    "studio_address":   "📍 Адрес",
+    "studio_instagram": "📸 Instagram",
+    "studio_schedule":  "🕐 Часы работы",
+    "trainer_telegram": "🧘 Telegram тренера (@username)",
+    "locations":        "📍 Студии/локации (через |)",
+    "trainers":         "👤 Тренеры (через |)",
+    "price_single":     "💰 Цена разовое (сум)",
+    "price_pack_4":     "💰 Цена 4 занятия (сум)",
+    "price_pack_8":     "💰 Цена 8 занятий (сум)",
 }
 
 @router.callback_query(F.data == "adm:settings")

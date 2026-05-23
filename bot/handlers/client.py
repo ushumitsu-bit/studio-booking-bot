@@ -78,6 +78,7 @@ def _main_menu_kb():
     b.button(text="📅 Расписание",        callback_data="schedule:0")
     b.button(text="🗓 Мои записи",        callback_data="my_bookings")
     b.button(text="💳 Абонемент",         callback_data="my_sub")
+    b.button(text="🧘 Индивидуальные",    callback_data="individual")
     b.button(text="📞 Контакты",          callback_data="contacts")
     b.adjust(1)
     return b.as_markup()
@@ -462,6 +463,30 @@ async def my_subscription(event, session: AsyncSession, db_user: User, **kwargs)
         await event.answer()
     else:
         await event.answer(text, reply_markup=b.as_markup())
+
+
+# ─────────────────────────────────────────────────────────────
+# ИНДИВИДУАЛЬНЫЕ ЗАНЯТИЯ
+# ─────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data == "individual")
+async def individual_lesson(call: CallbackQuery, session: AsyncSession, **kwargs):
+    from db.queries import get_setting
+    trainer_tg = await get_setting(session, "trainer_telegram", "")
+    b = InlineKeyboardBuilder()
+    if trainer_tg:
+        handle = trainer_tg.lstrip("@")
+        b.button(text="✍️ Написать тренеру", url=f"https://t.me/{handle}")
+    b.button(text="← Меню", callback_data="menu")
+    b.adjust(1)
+    await call.message.edit_text(
+        "🧘 <b>Индивидуальные занятия</b>\n\n"
+        "Персональные тренировки — занятие составляется под тебя:\n"
+        "уровень, цели, травмы и пожелания учитываются полностью.\n\n"
+        "Для записи и уточнения расписания напиши тренеру напрямую 👇",
+        reply_markup=b.as_markup(),
+    )
+    await call.answer()
 
 
 # ─────────────────────────────────────────────────────────────
