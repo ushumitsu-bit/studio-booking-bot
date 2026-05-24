@@ -6,9 +6,9 @@
 # =============================================================
 set -euo pipefail
 
-DOMAIN="${DOMAIN:-pilates.yourdomain.ru}"
-REPO_DIR="/opt/pilates_bot"
-CERTBOT_EMAIL="${CERTBOT_EMAIL:-admin@yourdomain.ru}"
+DOMAIN="${DOMAIN:-pilates.fapass.xyz}"
+REPO_DIR="/opt/pilates-bot"
+CERTBOT_EMAIL="${CERTBOT_EMAIL:-admin@yourdomain.uz}"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -40,7 +40,7 @@ if [ -d "$REPO_DIR/.git" ]; then
     git -C "$REPO_DIR" pull
 else
     # Замените URL на ваш репозиторий
-    git clone https://github.com/your-org/pilates_bot.git "$REPO_DIR"
+    git clone https://github.com/ushumitsu-bit/pilates-bot.git "$REPO_DIR"
 fi
 
 cd "$REPO_DIR"
@@ -68,7 +68,7 @@ fi
 
 # ─── 6. nginx.conf — подставляем домен ────────────────────────
 info "Настраиваем nginx с доменом $DOMAIN..."
-sed -i "s/pilates.yourdomain.ru/$DOMAIN/g" "$REPO_DIR/nginx.conf"
+sed -i "s/pilates\.fapass\.xyz/$DOMAIN/g" "$REPO_DIR/nginx.conf"
 
 # ─── 7. Запуск через Docker Compose ───────────────────────────
 info "Собираем и запускаем контейнеры..."
