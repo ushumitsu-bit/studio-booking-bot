@@ -72,8 +72,7 @@ async def cmd_start(message: Message, db_user: User, **kwargs):
         f"💳 <b>Абонемент</b> — купить и отслеживать\n\n"
         f"👇 Нажми кнопку ниже чтобы открыть приложение"
     )
-    await message.answer(text, reply_markup=_webapp_kb())
-    await message.answer("Или выбери раздел:", reply_markup=_main_menu_kb())
+    await message.answer(text, reply_markup=_main_menu_kb())
 
 
 @router.callback_query(F.data == "menu")
