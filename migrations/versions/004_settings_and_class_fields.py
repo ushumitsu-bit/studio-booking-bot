@@ -15,24 +15,26 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # ── settings ───────────────────────────────────────────────────
-    op.create_table(
-        "settings",
-        sa.Column("key",        sa.String(64),  primary_key=True),
-        sa.Column("value",      sa.Text(),      nullable=False, server_default=""),
-        sa.Column("updated_at", sa.DateTime(),  server_default=sa.text("now()"), nullable=False),
-    )
+    conn = op.get_bind()
 
-    # ── classes: новые колонки ─────────────────────────────────────
-    op.add_column("classes", sa.Column(
-        "location", sa.String(128), server_default="Студия", nullable=False,
-    ))
-    op.add_column("classes", sa.Column(
-        "payment_enabled", sa.Boolean(), server_default="true", nullable=False,
-    ))
-    op.add_column("classes", sa.Column(
-        "booking_enabled", sa.Boolean(), server_default="true", nullable=False,
-    ))
+    # ── settings ───────────────────────────────────────────────────
+    conn.execute(sa.text("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key        VARCHAR(64) PRIMARY KEY,
+            value      TEXT NOT NULL DEFAULT '',
+            updated_at TIMESTAMP NOT NULL DEFAULT now()
+        )
+    """))
+
+    # ── classes: новые колонки (если ещё нет) ─────────────────────
+    for col, definition in [
+        ("location",        "VARCHAR(128) NOT NULL DEFAULT 'Студия'"),
+        ("payment_enabled", "BOOLEAN NOT NULL DEFAULT true"),
+        ("booking_enabled", "BOOLEAN NOT NULL DEFAULT true"),
+    ]:
+        conn.execute(sa.text(
+            f"ALTER TABLE classes ADD COLUMN IF NOT EXISTS {col} {definition}"
+        ))
 
 
 def downgrade() -> None:
