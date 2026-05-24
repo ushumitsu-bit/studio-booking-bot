@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
-from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, Message, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,20 +52,28 @@ def _first_name(user: User) -> str:
     return user.username or "друг"
 
 
+def _webapp_kb():
+    from config import settings as cfg
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(
+            text="🕺 Открыть Latina Mafia",
+            web_app=WebAppInfo(url=f"{cfg.WEBHOOK_HOST}/miniapp/"),
+        )]],
+        resize_keyboard=True,
+    )
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, db_user: User, **kwargs):
     name = _first_name(db_user)
     text = (
-        f"🧘 Привет, <b>{name}</b>! Добро пожаловать в студию пилатеса.\n\n"
-        f"Через этого бота ты можешь:\n"
-        f"📅 <b>Расписание</b> — посмотреть занятия и записаться\n"
-        f"🗓 <b>Мои записи</b> — управлять своими записями\n"
-        f"💳 <b>Абонемент</b> — купить и отслеживать занятия\n"
-        f"🧘 <b>Индивидуальные</b> — персональные тренировки\n"
-        f"🌐 <b>Приложение</b> — удобный WebApp с календарём\n\n"
-        f"👇 <b>Нажми на любую кнопку чтобы начать</b>"
+        f"💃 Привет, <b>{name}</b>! Добро пожаловать в <b>Latina Mafia</b> — школу танцев.\n\n"
+        f"📅 <b>Расписание</b> — занятия и запись\n"
+        f"🗓 <b>Мои записи</b> — управление записями\n"
+        f"💳 <b>Абонемент</b> — купить и отслеживать\n\n"
+        f"👇 Нажми кнопку ниже чтобы открыть приложение"
     )
-    await message.answer(text, reply_markup=_main_menu_kb())
+    await message.answer(text, reply_markup=_webapp_kb())
+    await message.answer("Или выбери раздел:", reply_markup=_main_menu_kb())
 
 
 @router.callback_query(F.data == "menu")
