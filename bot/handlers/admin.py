@@ -184,9 +184,10 @@ def trainers_kb(items: list[str]):
     return b.as_markup()
 def spots_kb():
     b = InlineKeyboardBuilder()
-    for n in [4, 6, 8, 10, 12]:
+    for n in [5, 8, 10, 12, 15, 18, 20, 25]:
         b.button(text=str(n), callback_data=f"adm:spots:{n}")
-    b.adjust(5)
+    b.button(text="✏️ Другое", callback_data="adm:spots:custom")
+    b.adjust(4, 4, 1)
     return b.as_markup()
 
 def location_kb(items: list[str]):
@@ -327,10 +328,14 @@ async def msg_datetime(message: Message, state: FSMContext, **kwargs):
 
 @router.callback_query(F.data.startswith("adm:spots:"), AddClassFSM.max_spots)
 async def cb_spots(call: CallbackQuery, state: FSMContext, session: AsyncSession, **kwargs):
+    val = call.data[len("adm:spots:"):]
+    if val == "custom":
+        await call.message.edit_text("Введи количество мест:")
+        await call.answer()
+        return
     from db.queries import get_setting
     locations = _split_setting(await get_setting(session, "locations"))
-    spots = int(call.data[len("adm:spots:"):])
-    await state.update_data(spots=spots)
+    await state.update_data(spots=int(val))
     await state.set_state(AddClassFSM.location)
     await call.message.edit_text("📍 <b>Шаг 5/6 — место проведения</b>\n\nГде будет занятие?", reply_markup=location_kb(locations))
     await call.answer()
