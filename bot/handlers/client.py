@@ -87,14 +87,12 @@ async def cb_menu(call: CallbackQuery, db_user: User, **kwargs):
 
 
 def _main_menu_kb():
-    from aiogram.types import WebAppInfo
     b = InlineKeyboardBuilder()
-    b.button(text="🌐 Открыть приложение",         web_app=WebAppInfo(url="https://pilates.fapass.xyz/miniapp/"))
-    b.button(text="📅 Расписание и запись",        callback_data="schedule:0")
-    b.button(text="🗓 Мои записи",                 callback_data="my_bookings")
-    b.button(text="💳 Абонемент / Оплата",         callback_data="my_sub")
-    b.button(text="🧘 Индивидуальные занятия",     callback_data="individual")
-    b.button(text="📞 Контакты студии",            callback_data="contacts")
+    b.button(text="📅 Расписание и запись",    callback_data="schedule:0")
+    b.button(text="🗓 Мои записи",             callback_data="my_bookings")
+    b.button(text="💳 Абонемент / Оплата",     callback_data="my_sub")
+    b.button(text="🧘 Индивидуальные занятия", callback_data="individual")
+    b.button(text="📞 Контакты студии",        callback_data="contacts")
     b.adjust(1)
     return b.as_markup()
 
