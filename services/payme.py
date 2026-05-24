@@ -32,9 +32,10 @@ ERR_CANT_CANCEL   = -31007
 ERR_ALREADY_DONE  = -31060
 
 PRICE_MAP = {
-    "single": settings.PRICE_SINGLE,
-    "pack_4": settings.PRICE_4_CLASSES,
-    "pack_8": settings.PRICE_8_CLASSES,
+    "pack_4":  settings.PRICE_4_CLASSES,
+    "pack_8":  settings.PRICE_8_CLASSES,
+    "pack_12": settings.PRICE_12_CLASSES,
+    "pack_16": settings.PRICE_16_CLASSES,
 }
 
 
