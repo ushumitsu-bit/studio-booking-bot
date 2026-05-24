@@ -470,18 +470,22 @@ function _sh() { document.getElementById('sheet-wrap').classList.remove('open');
 
 async function doBook() {
   if (!sheetData) return; _sh();
-  const r = await api('/book',{method:'POST',body:JSON.stringify({class_id:sheetData.id})});
-  if (r.ok) { toast('✓ Ты записана!'); refresh(); }
-  else toast(r.error||'Ошибка записи', true);
+  try {
+    const r = await api('/book',{method:'POST',body:JSON.stringify({class_id:sheetData.id})});
+    if (r.ok) { toast('✓ Ты записана!'); refresh(); }
+    else toast(r.error||'Ошибка записи', true);
+  } catch(e) { toast('Ошибка соединения', true); }
 }
 async function doCancel() {
   if (!sheetData) return; _sh();
-  const bks = await api('/bookings');
-  const bk  = bks.bookings?.find(b=>b.title===sheetData.title && b.time===sheetData.time);
-  if (!bk) { toast('Запись не найдена', true); return; }
-  const r = await api('/cancel',{method:'POST',body:JSON.stringify({booking_id:bk.booking_id})});
-  if (r.ok) { toast('Запись отменена'); refresh(); }
-  else toast('Ошибка', true);
+  try {
+    const bks = await api('/bookings');
+    const bk  = bks.bookings?.find(b=>b.title===sheetData.title && b.time===sheetData.time);
+    if (!bk) { toast('Запись не найдена', true); return; }
+    const r = await api('/cancel',{method:'POST',body:JSON.stringify({booking_id:bk.booking_id})});
+    if (r.ok) { toast('Запись отменена'); refresh(); }
+    else toast('Ошибка', true);
+  } catch(e) { toast('Ошибка соединения', true); }
 }
 function refresh() {
   if (cur==='home')     loadHome();
@@ -615,9 +619,11 @@ async function loadBk() {
   }).join('');
 }
 async function cancelBk(id) {
-  const r = await api('/cancel',{method:'POST',body:JSON.stringify({booking_id:id})});
-  if (r.ok) { toast('Запись отменена'); loadBk(); }
-  else toast('Ошибка',true);
+  try {
+    const r = await api('/cancel',{method:'POST',body:JSON.stringify({booking_id:id})});
+    if (r.ok) { toast('Запись отменена'); loadBk(); }
+    else toast('Ошибка',true);
+  } catch(e) { toast('Ошибка соединения', true); }
 }
 
 /* ── SUBSCRIPTION ── */

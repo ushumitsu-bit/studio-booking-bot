@@ -105,7 +105,11 @@ async def api_book(req: BookReq, x_user_id: str = Header("0")):
         existing = await get_booking(session, user.id, req.class_id)
         if existing and existing.status == BookingStatus.CONFIRMED:
             return {"ok": False, "error": "Ты уже записана"}
-        cls = await session.get(Class, req.class_id)
+        from sqlalchemy.orm import selectinload as _sl
+        cls_result = await session.execute(
+            select(Class).options(_sl(Class.bookings)).where(Class.id == req.class_id)
+        )
+        cls = cls_result.scalar_one_or_none()
         if not cls:
             return {"ok": False, "error": "Занятие не найдено"}
         confirmed = [b for b in cls.bookings if b.status == BookingStatus.CONFIRMED]
