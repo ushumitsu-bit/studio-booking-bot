@@ -407,11 +407,17 @@ let dots = new Set(), selDay = null, cur = 'home', sheetData = null;
 
 /* ── API ── */
 async function api(path, opts={}) {
-  const r = await fetch('/miniapp/api'+path, {
-    headers:{'X-User-Id':String(uid),'Content-Type':'application/json'},
-    ...opts
-  });
-  return r.json();
+  try {
+    const r = await fetch('/miniapp/api'+path, {
+      headers:{'X-User-Id':String(uid),'Content-Type':'application/json'},
+      ...opts
+    });
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  } catch(e) {
+    console.error('API error', path, e);
+    throw e;
+  }
 }
 
 /* ── Navigation ── */
@@ -485,19 +491,23 @@ function refresh() {
 
 /* ── HOME ── */
 async function loadHome() {
-  const d = await api('/home');
-  document.getElementById('h-name').textContent = d.name?.split(' ')[0]||'Гость';
-  document.getElementById('h-cls').textContent  = d.classes_left??'—';
-  const nxt = document.getElementById('h-next');
-  if (d.next_class && d.next_class!=='—') {
-    nxt.innerHTML = d.next_class+'<br><span style="font-size:12px;color:var(--muted);font-weight:500">'+(d.days_until||'')+'</span>';
-  } else nxt.textContent='—';
   const el = document.getElementById('h-list');
-  if (!d.upcoming?.length) {
-    el.innerHTML='<div class="empty"><div class="ico">🌿</div><p>Нет ближайших занятий</p></div>';
-    return;
+  try {
+    const d = await api('/home');
+    document.getElementById('h-name').textContent = d.name?.split(' ')[0]||'Гость';
+    document.getElementById('h-cls').textContent  = d.classes_left??'—';
+    const nxt = document.getElementById('h-next');
+    if (d.next_class && d.next_class!=='—') {
+      nxt.innerHTML = d.next_class+'<br><span style="font-size:12px;color:var(--muted);font-weight:500">'+(d.days_until||'')+'</span>';
+    } else nxt.textContent='—';
+    if (!d.upcoming?.length) {
+      el.innerHTML='<div class="empty"><div class="ico">🌿</div><p>Нет ближайших занятий</p></div>';
+      return;
+    }
+    el.innerHTML = d.upcoming.map(c=>ccHTML(c)).join('');
+  } catch(e) {
+    el.innerHTML='<div class="empty"><div class="ico">⚠️</div><p>Нет соединения с сервером</p></div>';
   }
-  el.innerHTML = d.upcoming.map(c=>ccHTML(c)).join('');
 }
 
 /* ── CALENDAR ── */
@@ -561,8 +571,12 @@ function calMove(dir) {
 
 /* ── BOOKINGS ── */
 async function loadBk() {
-  const d = await api('/bookings');
   const el = document.getElementById('bk-list');
+  let d;
+  try { d = await api('/bookings'); } catch(e) {
+    el.innerHTML='<div class="empty"><div class="ico">⚠️</div><p>Нет соединения с сервером</p></div>';
+    return;
+  }
   if (!d.bookings?.length) {
     el.innerHTML='<div class="empty"><div class="ico">🗓</div><p>Нет предстоящих занятий.<br>Запишись через расписание!</p></div>';
     return;
@@ -595,7 +609,12 @@ async function cancelBk(id) {
 
 /* ── SUBSCRIPTION ── */
 async function loadSub() {
-  const d = await api('/subscription');
+  const el = document.getElementById('sub-body');
+  let d;
+  try { d = await api('/subscription'); } catch(e) {
+    el.innerHTML='<div class="empty"><div class="ico">⚠️</div><p>Нет соединения с сервером</p></div>';
+    return;
+  }
   const pct = d.total ? Math.round(d.classes_left/d.total*100) : 0;
   let hero = '';
   if (d.classes_left>0) {
@@ -618,19 +637,23 @@ async function loadSub() {
       <div style="font-size:13px;color:var(--muted)">Выбери подходящий тариф</div>
     </div>`;
   }
-  document.getElementById('sub-body').innerHTML = hero +
+  el.innerHTML = hero +
     `<div class="sec">Купить абонемент</div>
-    <div class="plan" onclick="pay('single')">
-      <div class="plan-l"><div class="plan-n">Разовое занятие</div><div class="plan-d">Попробуй без обязательств</div></div>
-      <div class="plan-p">1 200 ₽</div>
-    </div>
     <div class="plan" onclick="pay('four')">
-      <div class="plan-l"><div class="plan-n">4 занятия</div><div class="plan-d">Экономия 300 ₽</div></div>
-      <div class="plan-p">4 200 ₽</div>
+      <div class="plan-l"><div class="plan-n">4 занятия</div><div class="plan-d">30 дней</div></div>
+      <div class="plan-p">500 000 сум</div>
     </div>
-    <div class="plan feat" onclick="pay('eight')">
-      <div class="plan-l"><div class="plan-n">8 занятий <span class="hot">🔥 ВЫГОДНО</span></div><div class="plan-d">Экономия 1 400 ₽</div></div>
-      <div class="plan-p">6 400 ₽</div>
+    <div class="plan" onclick="pay('eight')">
+      <div class="plan-l"><div class="plan-n">8 занятий</div><div class="plan-d">30 дней</div></div>
+      <div class="plan-p">800 000 сум</div>
+    </div>
+    <div class="plan feat" onclick="pay('twelve')">
+      <div class="plan-l"><div class="plan-n">12 занятий <span class="hot">🔥 ВЫГОДНО</span></div><div class="plan-d">30 дней</div></div>
+      <div class="plan-p">1 100 000 сум</div>
+    </div>
+    <div class="plan" onclick="pay('sixteen')">
+      <div class="plan-l"><div class="plan-n">16 занятий</div><div class="plan-d">30 дней</div></div>
+      <div class="plan-p">1 400 000 сум</div>
     </div>`;
 }
 async function pay(plan) {
