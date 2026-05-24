@@ -121,9 +121,10 @@ nav{
   background:var(--card);border:1px solid var(--border);
   color:var(--text);display:flex;align-items:center;justify-content:center;
   cursor:pointer;font-size:16px;transition:all .15s;user-select:none;
+  touch-action:manipulation;
 }
 .cal-btn:active{background:var(--border);transform:scale(.9)}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:18px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:18px;min-height:228px}
 .cal-dn{text-align:center;font-size:11px;color:var(--muted);padding:5px 0;font-weight:600}
 .cal-d{
   aspect-ratio:1;display:flex;align-items:center;justify-content:center;
