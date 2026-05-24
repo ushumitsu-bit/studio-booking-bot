@@ -199,9 +199,24 @@ async def api_pay(req: PayReq, x_user_id: str = Header("0")):
     from services.payme import make_payment_url
     from db.queries import create_payment
     from config import settings as cfg
-    plan_map = {"single": SubscriptionType.SINGLE, "four": SubscriptionType.PACK_4, "eight": SubscriptionType.PACK_8}
-    price_map = {"single": cfg.PRICE_SINGLE, "four": cfg.PRICE_4_CLASSES, "eight": cfg.PRICE_8_CLASSES}
-    desc_map = {"single": "Разовое занятие", "four": "Абонемент 4 занятия", "eight": "Абонемент 8 занятий"}
+    plan_map = {
+        "four":    SubscriptionType.PACK_4,
+        "eight":   SubscriptionType.PACK_8,
+        "twelve":  SubscriptionType.PACK_12,
+        "sixteen": SubscriptionType.PACK_16,
+    }
+    price_map = {
+        "four":    cfg.PRICE_4_CLASSES,
+        "eight":   cfg.PRICE_8_CLASSES,
+        "twelve":  cfg.PRICE_12_CLASSES,
+        "sixteen": cfg.PRICE_16_CLASSES,
+    }
+    desc_map = {
+        "four":    "Абонемент 4 занятия",
+        "eight":   "Абонемент 8 занятий",
+        "twelve":  "Абонемент 12 занятий",
+        "sixteen": "Абонемент 16 занятий",
+    }
     sub_type = plan_map.get(req.plan)
     if not sub_type:
         return {"error": "Неверный тариф"}

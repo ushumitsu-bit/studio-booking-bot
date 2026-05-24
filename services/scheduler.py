@@ -18,6 +18,7 @@ from db.models import BookingStatus
 from db.queries import (
     get_all_active_users,
     get_expiring_subscriptions,
+    get_low_classes_subscriptions,
     get_upcoming_classes,
     mark_missed_bookings,
 )
@@ -70,12 +71,22 @@ def text_kick_missed(class_title: str, starts_at: datetime) -> str:
 
 def text_expiring_subscription(classes_left: int, expires_at: datetime) -> str:
     days = (expires_at - datetime.utcnow()).days
+    days_str = "сегодня" if days <= 0 else f"через {days} дн."
     return (
-        f"💳 <b>Абонемент скоро заканчивается!</b>\n\n"
+        f"⚠️ <b>Абонемент истекает {days_str}!</b>\n\n"
         f"Осталось занятий: <b>{classes_left}</b>\n"
-        f"Срок действия истекает через <b>{days} дн.</b>\n\n"
-        f"Продли сейчас, чтобы не терять место в расписании 👇\n"
-        f"/pay"
+        f"Срок действия заканчивается <b>{expires_at.strftime('%d.%m.%Y')}</b>\n\n"
+        f"Продли сейчас, чтобы не потерять место в расписании 👇"
+    )
+
+
+def text_low_classes(classes_left: int) -> str:
+    word = "занятие" if classes_left == 1 else "занятия"
+    return (
+        f"💳 <b>Занятия заканчиваются!</b>\n\n"
+        f"На твоём абонементе осталось <b>{classes_left} {word}</b>.\n\n"
+        f"Купи новый абонемент заранее — так ты точно сохранишь место "
+        f"в расписании и не сделаешь перерыв 👇"
     )
 
 
@@ -151,18 +162,47 @@ async def send_kick_messages(bot: Bot):
 
 
 async def warn_expiring_subscriptions(bot: Bot):
-    """Предупреждение об истекающем абонементе."""
+    """Предупреждение об истечении срока абонемента (≤3 дня)."""
+    from aiogram.types import InlineKeyboardMarkup
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
     async with AsyncSessionFactory() as session:
         subs = await get_expiring_subscriptions(session)
         for sub in subs:
             try:
+                b = InlineKeyboardBuilder()
+                b.button(text="💳 Продлить абонемент", callback_data="pay")
+                b.adjust(1)
                 await bot.send_message(
                     sub.user_id,
                     text_expiring_subscription(sub.classes_left, sub.expires_at),
+                    reply_markup=b.as_markup(),
                 )
                 sub.expiry_warned = True
             except Exception as e:
                 logger.error(f"Expiry warning error for {sub.user_id}: {e}")
+        await session.commit()
+
+
+async def warn_low_classes(bot: Bot):
+    """Предупреждение когда осталось ≤2 занятий на абонементе."""
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    async with AsyncSessionFactory() as session:
+        subs = await get_low_classes_subscriptions(session)
+        for sub in subs:
+            try:
+                b = InlineKeyboardBuilder()
+                b.button(text="💳 Купить абонемент", callback_data="pay")
+                b.adjust(1)
+                await bot.send_message(
+                    sub.user_id,
+                    text_low_classes(sub.classes_left),
+                    reply_markup=b.as_markup(),
+                )
+                sub.low_classes_warned = True
+            except Exception as e:
+                logger.error(f"Low classes warning error for {sub.user_id}: {e}")
         await session.commit()
 
 
@@ -182,6 +222,10 @@ async def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
     scheduler.add_job(
         warn_expiring_subscriptions, "interval", minutes=60,
         kwargs={"bot": bot}, id="expiry_warnings",
+    )
+    scheduler.add_job(
+        warn_low_classes, "interval", minutes=60,
+        kwargs={"bot": bot}, id="low_classes_warnings",
     )
 
     return scheduler

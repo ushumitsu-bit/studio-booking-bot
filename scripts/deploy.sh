@@ -90,7 +90,8 @@ info "
 ║  Деплой завершён!                                    ║
 ╠══════════════════════════════════════════════════════╣
 ║  Бот запущен                                         ║
-║  Webhook ЮKassa:  https://$DOMAIN/yukassa/webhook    ║
+║  Payme webhook:  https://$DOMAIN/payme/webhook       ║
+║  Miniapp:        https://$DOMAIN/miniapp/            ║
 ║                                                      ║
 ║  Логи:    docker compose logs -f bot                 ║
 ║  Стоп:    docker compose down                        ║

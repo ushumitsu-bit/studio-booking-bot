@@ -39,9 +39,11 @@ class PaymentStatus(str, PyEnum):
 
 
 class SubscriptionType(str, PyEnum):
-    SINGLE   = "single"      # 1 занятие
+    SINGLE   = "single"      # 1 занятие (устарело, оставлено для совместимости)
     PACK_4   = "pack_4"      # 4 занятия
     PACK_8   = "pack_8"      # 8 занятий
+    PACK_12  = "pack_12"     # 12 занятий
+    PACK_16  = "pack_16"     # 16 занятий
 
 
 # ─────────────────────────── Таблицы ─────────────────────────────
@@ -107,7 +109,8 @@ class Subscription(Base):
     sub_type    = Column(Enum(SubscriptionType), nullable=False)
     classes_left= Column(Integer, nullable=False)        # остаток занятий
     expires_at  = Column(DateTime, nullable=True)        # срок действия
-    expiry_warned= Column(Boolean, default=False)        # уведомление отправлено
+    expiry_warned       = Column(Boolean, default=False)  # предупреждение о дате конца
+    low_classes_warned  = Column(Boolean, default=False)  # предупреждение о малом остатке
     created_at  = Column(DateTime, default=datetime.utcnow)
 
     user     = relationship("User", back_populates="subscriptions")

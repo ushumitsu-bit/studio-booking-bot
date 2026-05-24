@@ -23,9 +23,10 @@ class Settings(BaseSettings):
     WEBHOOK_PATH: str = "/payme/webhook"
 
     # Цены (в сумах)
-    PRICE_SINGLE: int = 150000
     PRICE_4_CLASSES: int = 500000
     PRICE_8_CLASSES: int = 800000
+    PRICE_12_CLASSES: int = 1100000
+    PRICE_16_CLASSES: int = 1400000
 
     # Посещаемость — секрет для подписи QR-токенов
     ATTENDANCE_SECRET: str = "change-me-attendance-secret"

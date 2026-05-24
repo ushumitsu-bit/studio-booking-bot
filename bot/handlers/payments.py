@@ -25,15 +25,17 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 PRICES = {
-    SubscriptionType.SINGLE: settings.PRICE_SINGLE,
-    SubscriptionType.PACK_4: settings.PRICE_4_CLASSES,
-    SubscriptionType.PACK_8: settings.PRICE_8_CLASSES,
+    SubscriptionType.PACK_4:  settings.PRICE_4_CLASSES,
+    SubscriptionType.PACK_8:  settings.PRICE_8_CLASSES,
+    SubscriptionType.PACK_12: settings.PRICE_12_CLASSES,
+    SubscriptionType.PACK_16: settings.PRICE_16_CLASSES,
 }
 
 DESCRIPTIONS = {
-    SubscriptionType.SINGLE: "1 занятие пилатес",
-    SubscriptionType.PACK_4: "Абонемент 4 занятия",
-    SubscriptionType.PACK_8: "Абонемент 8 занятий",
+    SubscriptionType.PACK_4:  "Абонемент 4 занятия",
+    SubscriptionType.PACK_8:  "Абонемент 8 занятий",
+    SubscriptionType.PACK_12: "Абонемент 12 занятий",
+    SubscriptionType.PACK_16: "Абонемент 16 занятий",
 }
 
 
@@ -44,12 +46,16 @@ DESCRIPTIONS = {
 async def show_payment_menu(event: Message | CallbackQuery):
     text = (
         "💳 <b>Выбери тариф:</b>\n\n"
-        f"🔹 1 занятие — {settings.PRICE_SINGLE:,} сум\n"
         f"🔹 4 занятия — {settings.PRICE_4_CLASSES:,} сум "
-        f"({settings.PRICE_4_CLASSES // 4:,} сум/занятие)\n"
-        f"🔹 8 занятий — {settings.PRICE_8_CLASSES:,} сум 🔥 "
-        f"({settings.PRICE_8_CLASSES // 8:,} сум/занятие)\n\n"
-        "Оплата через <b>Payme</b> — картой Uzcard, Humo или Visa/Mastercard."
+        f"({settings.PRICE_4_CLASSES // 4:,} сум/зан.)\n"
+        f"🔹 8 занятий — {settings.PRICE_8_CLASSES:,} сум "
+        f"({settings.PRICE_8_CLASSES // 8:,} сум/зан.)\n"
+        f"🔹 12 занятий — {settings.PRICE_12_CLASSES:,} сум 🔥 "
+        f"({settings.PRICE_12_CLASSES // 12:,} сум/зан.)\n"
+        f"🔹 16 занятий — {settings.PRICE_16_CLASSES:,} сум 💎 "
+        f"({settings.PRICE_16_CLASSES // 16:,} сум/зан.)\n\n"
+        "Срок действия: <b>30 дней</b> с момента оплаты.\n"
+        "Оплата через <b>Payme</b> — Uzcard, Humo, Visa/Mastercard."
     )
     kb = payment_plans_keyboard()
 

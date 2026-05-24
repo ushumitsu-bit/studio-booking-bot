@@ -6,10 +6,11 @@ from config import settings
 
 def payment_plans_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text=f"1 занятие — {settings.PRICE_SINGLE:,} сум",       callback_data="pay_single")
-    builder.button(text=f"4 занятия — {settings.PRICE_4_CLASSES:,} сум",     callback_data="pay_pack_4")
-    builder.button(text=f"8 занятий — {settings.PRICE_8_CLASSES:,} сум 🔥",  callback_data="pay_pack_8")
-    builder.button(text="← Меню",                                          callback_data="menu")
+    builder.button(text=f"4 занятия — {settings.PRICE_4_CLASSES:,} сум",      callback_data="pay_pack_4")
+    builder.button(text=f"8 занятий — {settings.PRICE_8_CLASSES:,} сум",      callback_data="pay_pack_8")
+    builder.button(text=f"12 занятий — {settings.PRICE_12_CLASSES:,} сум 🔥", callback_data="pay_pack_12")
+    builder.button(text=f"16 занятий — {settings.PRICE_16_CLASSES:,} сум 💎", callback_data="pay_pack_16")
+    builder.button(text="← Меню",                                              callback_data="menu")
     builder.adjust(1)
     return builder.as_markup()
 

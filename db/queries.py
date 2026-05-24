@@ -145,9 +145,11 @@ async def mark_missed_bookings(session: AsyncSession):
 # ═══════════════════════ SUBSCRIPTIONS ═══════════════════════════
 
 SUBSCRIPTION_CLASSES = {
-    SubscriptionType.SINGLE: 1,
-    SubscriptionType.PACK_4: 4,
-    SubscriptionType.PACK_8: 8,
+    SubscriptionType.SINGLE:  1,
+    SubscriptionType.PACK_4:  4,
+    SubscriptionType.PACK_8:  8,
+    SubscriptionType.PACK_12: 12,
+    SubscriptionType.PACK_16: 16,
 }
 
 
@@ -174,7 +176,7 @@ async def create_subscription(
         user_id=user_id,
         sub_type=sub_type,
         classes_left=classes,
-        expires_at=datetime.utcnow() + timedelta(days=60),
+        expires_at=datetime.utcnow() + timedelta(days=30),
     )
     session.add(sub)
     await session.commit()
@@ -190,7 +192,7 @@ async def decrement_subscription(session: AsyncSession, user_id: int):
 
 
 async def get_expiring_subscriptions(session: AsyncSession) -> list[Subscription]:
-    """Абонементы, истекающие через ≤3 дня, без отправленного предупреждения."""
+    """Абонементы, истекающие через ≤3 дня, без отправленного предупреждения о дате."""
     deadline = datetime.utcnow() + timedelta(days=3)
     result = await session.execute(
         select(Subscription)
@@ -198,8 +200,25 @@ async def get_expiring_subscriptions(session: AsyncSession) -> list[Subscription
         .where(
             and_(
                 Subscription.classes_left > 0,
+                Subscription.expires_at != None,
                 Subscription.expires_at <= deadline,
                 Subscription.expiry_warned == False,
+            )
+        )
+    )
+    return result.scalars().all()
+
+
+async def get_low_classes_subscriptions(session: AsyncSession) -> list[Subscription]:
+    """Абонементы с ≤2 занятиями, без отправленного предупреждения о малом остатке."""
+    result = await session.execute(
+        select(Subscription)
+        .options(selectinload(Subscription.user))
+        .where(
+            and_(
+                Subscription.classes_left > 0,
+                Subscription.classes_left <= 2,
+                Subscription.low_classes_warned == False,
             )
         )
     )
@@ -264,7 +283,7 @@ async def confirm_payme_payment(session: AsyncSession, payme_id: str) -> Optiona
     sub = payment.subscription
     classes = SUBSCRIPTION_CLASSES[sub.sub_type]
     sub.classes_left = classes
-    sub.expires_at = datetime.utcnow() + timedelta(days=60)
+    sub.expires_at = datetime.utcnow() + timedelta(days=30)
 
     await session.commit()
     return payment
