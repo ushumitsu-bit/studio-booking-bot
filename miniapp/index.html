@@ -124,7 +124,7 @@ nav{
   touch-action:manipulation;
 }
 .cal-btn:active{background:var(--border);transform:scale(.9)}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:18px;min-height:228px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:18px}
 .cal-dn{text-align:center;font-size:11px;color:var(--muted);padding:5px 0;font-weight:600}
 .cal-d{
   aspect-ratio:1;display:flex;align-items:center;justify-content:center;
@@ -545,6 +545,10 @@ function renderGrid() {
     const cl=!past?`onclick="pick('${ds}')"` :'';
     h+=`<div class="${c}" ${cl}>${d}</div>`;
   }
+  // Pad to always fill 6 complete rows (42 cells) — keeps calendar height stable
+  const filled = fd + nd;
+  const target = Math.max(42, Math.ceil(filled/7)*7);
+  for(let i=filled;i<target;i++) h+=`<div class="cal-d empty"></div>`;
   document.getElementById('cal-grid').innerHTML = h;
 }
 async function pick(ds) {
