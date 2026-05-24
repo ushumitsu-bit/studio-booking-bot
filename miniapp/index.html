@@ -517,11 +517,15 @@ function pad(n){ return String(n).padStart(2,'0') }
 async function loadCal() {
   document.getElementById('cal-lbl').textContent = `${MO[cm-1]} ${cy}`;
   renderGrid();
-  const d = await api(`/schedule?year=${cy}&month=${cm}`);
-  dots = new Set((d.classes||[]).map(c=>c.date));
-  renderGrid();
-  const ts = fmtDate(now);
-  if (cy===now.getFullYear() && cm===now.getMonth()+1 && dots.has(ts)) selDay=ts, renderGrid(), loadDay(ts);
+  try {
+    const d = await api(`/schedule?year=${cy}&month=${cm}`);
+    dots = new Set((d.classes||[]).map(c=>c.date));
+    renderGrid();
+    const ts = fmtDate(now);
+    if (cy===now.getFullYear() && cm===now.getMonth()+1 && dots.has(ts)) selDay=ts, renderGrid(), loadDay(ts);
+  } catch(e) {
+    // dots remain empty, calendar still usable
+  }
 }
 function renderGrid() {
   const fd = (new Date(cy,cm-1,1).getDay()+6)%7;
@@ -549,14 +553,18 @@ async function loadDay(ds) {
   const [y,m,d] = ds.split('-').map(Number);
   const dow = (new Date(y,m-1,d).getDay()+6)%7;
   document.getElementById('day-hd').innerHTML = `<b>${DL[dow]}, ${d} ${MOS[m-1]}</b>`;
-  document.getElementById('day-list').innerHTML='<div class="loader"><div class="spin"></div></div>';
-  const data = await api(`/schedule/day?date=${ds}`);
   const el = document.getElementById('day-list');
-  if (!data.classes?.length) {
-    el.innerHTML='<div class="empty"><div class="ico">🌿</div><p>В этот день занятий нет</p></div>';
-    return;
+  el.innerHTML='<div class="loader"><div class="spin"></div></div>';
+  try {
+    const data = await api(`/schedule/day?date=${ds}`);
+    if (!data.classes?.length) {
+      el.innerHTML='<div class="empty"><div class="ico">🌿</div><p>В этот день занятий нет</p></div>';
+      return;
+    }
+    el.innerHTML = data.classes.map(c=>{ c.date_str=`${d} ${MOS[m-1]}`; return ccHTML(c); }).join('');
+  } catch(e) {
+    el.innerHTML='<div class="empty"><div class="ico">⚠️</div><p>Не удалось загрузить занятия</p></div>';
   }
-  el.innerHTML = data.classes.map(c=>{ c.date_str=`${d} ${MOS[m-1]}`; return ccHTML(c); }).join('');
 }
 function calMove(dir) {
   cm+=dir;

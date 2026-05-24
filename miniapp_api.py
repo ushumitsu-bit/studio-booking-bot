@@ -64,8 +64,9 @@ async def api_schedule(year: int, month: int, x_user_id: str = Header("0")):
 async def api_schedule_day(date: str, x_user_id: str = Header("0")):
     tg_id = int(x_user_id) if x_user_id.isdigit() else 0
     async with AsyncSessionFactory() as session:
+        from sqlalchemy.orm import selectinload as _sl
         dt = datetime.strptime(date, "%Y-%m-%d")
-        result = await session.execute(select(Class).where(
+        result = await session.execute(select(Class).options(_sl(Class.bookings)).where(
             Class.starts_at >= dt, Class.starts_at < dt + timedelta(days=1),
             Class.is_cancelled == False).order_by(Class.starts_at))
         classes = result.scalars().all()
