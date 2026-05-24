@@ -400,14 +400,15 @@ async def cb_schedule(call: CallbackQuery, session: AsyncSession, **kwargs):
     if not await check_admin(call):
         return
     now = datetime.now()
-    result = await session.execute(select(Class).where(Class.starts_at >= now, Class.starts_at <= now + timedelta(days=14), Class.is_cancelled == False).order_by(Class.starts_at))
+    since = now - timedelta(days=1)
+    result = await session.execute(select(Class).where(Class.starts_at >= since, Class.starts_at <= now + timedelta(days=30), Class.is_cancelled == False).order_by(Class.starts_at))
     classes = result.scalars().all()
     b = InlineKeyboardBuilder()
     if not classes:
         b.button(text="📅 Добавить занятие", callback_data="adm:addclass")
         b.button(text="← Меню", callback_data="adm:main")
         b.adjust(1)
-        await call.message.edit_text("На ближайшие 2 недели занятий нет.", reply_markup=b.as_markup())
+        await call.message.edit_text("Занятий нет (вчера — 30 дней вперёд).", reply_markup=b.as_markup())
         await call.answer()
         return
     for cls in classes:
