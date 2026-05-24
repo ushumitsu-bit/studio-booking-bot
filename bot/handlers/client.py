@@ -46,26 +46,34 @@ DAYS_SHORT = {
 # /start
 # ─────────────────────────────────────────────────────────────
 
+def _first_name(user: User) -> str:
+    if user.full_name:
+        return user.full_name.split()[0]
+    return user.username or "друг"
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, db_user: User, **kwargs):
-    name = db_user.full_name.split()[0]
+    name = _first_name(db_user)
     text = (
-        f"🧘 Привет, <b>{name}</b>!\n\n"
-        f"Я помогу тебе:\n"
-        f"📅 Посмотреть расписание занятий\n"
-        f"✏️ Записаться и отменить запись\n"
-        f"💳 Оплатить абонемент через Payme\n"
-        f"📊 Следить за своим абонементом\n\n"
-        f"Выбери что тебя интересует 👇"
+        f"🧘 Привет, <b>{name}</b>! Добро пожаловать в студию пилатеса.\n\n"
+        f"Через этого бота ты можешь:\n"
+        f"📅 <b>Расписание</b> — посмотреть занятия и записаться\n"
+        f"🗓 <b>Мои записи</b> — управлять своими записями\n"
+        f"💳 <b>Абонемент</b> — купить и отслеживать занятия\n"
+        f"🧘 <b>Индивидуальные</b> — персональные тренировки\n"
+        f"🌐 <b>Приложение</b> — удобный WebApp с календарём\n\n"
+        f"👇 <b>Нажми на любую кнопку чтобы начать</b>"
     )
     await message.answer(text, reply_markup=_main_menu_kb())
 
 
 @router.callback_query(F.data == "menu")
 async def cb_menu(call: CallbackQuery, db_user: User, **kwargs):
-    name = db_user.full_name.split()[0]
+    name = _first_name(db_user)
     await call.message.edit_text(
-        f"🏠 Главное меню\n\nЧто хочешь сделать, <b>{name}</b>?",
+        f"🏠 <b>Главное меню</b>\n\nЧто хочешь сделать, {name}?\n\n"
+        f"👇 Нажми на нужную кнопку",
         reply_markup=_main_menu_kb(),
     )
     await call.answer()
@@ -74,12 +82,12 @@ async def cb_menu(call: CallbackQuery, db_user: User, **kwargs):
 def _main_menu_kb():
     from aiogram.types import WebAppInfo
     b = InlineKeyboardBuilder()
-    b.button(text="🌐 Открыть приложение", web_app=WebAppInfo(url="https://pilates.fapass.xyz/miniapp/"))
-    b.button(text="📅 Расписание",        callback_data="schedule:0")
-    b.button(text="🗓 Мои записи",        callback_data="my_bookings")
-    b.button(text="💳 Абонемент",         callback_data="my_sub")
-    b.button(text="🧘 Индивидуальные",    callback_data="individual")
-    b.button(text="📞 Контакты",          callback_data="contacts")
+    b.button(text="🌐 Открыть приложение",         web_app=WebAppInfo(url="https://pilates.fapass.xyz/miniapp/"))
+    b.button(text="📅 Расписание и запись",        callback_data="schedule:0")
+    b.button(text="🗓 Мои записи",                 callback_data="my_bookings")
+    b.button(text="💳 Абонемент / Оплата",         callback_data="my_sub")
+    b.button(text="🧘 Индивидуальные занятия",     callback_data="individual")
+    b.button(text="📞 Контакты студии",            callback_data="contacts")
     b.adjust(1)
     return b.as_markup()
 

@@ -28,8 +28,16 @@ class AuthMiddleware(BaseMiddleware):
                     data["session"] = session
                 return await handler(event, data)
         except Exception as e:
-            logger.error(f"Middleware error for user {tg_user.id if tg_user else '?'}: {e}")
+            logger.error(
+                f"Middleware error for user {tg_user.id if tg_user else '?'}: {e}",
+                exc_info=True,
+            )
             if isinstance(event, Message):
-                await event.answer("⚠️ Временная ошибка, попробуй ещё раз")
+                await event.answer(
+                    "⚠️ Что-то пошло не так. Попробуй ещё раз или напиши /start"
+                )
             elif isinstance(event, CallbackQuery):
-                await event.answer("⚠️ Временная ошибка, попробуй ещё раз", show_alert=True)
+                await event.answer(
+                    "⚠️ Ошибка. Нажми /start чтобы перезапустить бота",
+                    show_alert=True,
+                )
