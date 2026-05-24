@@ -91,10 +91,10 @@ class BroadcastFSM(StatesGroup):
     text    = State()
     confirm = State()
 
-CLASS_TEMPLATES = ["Пилатес для начинающих","Пилатес на реформере","Стретчинг + пилатес","Пилатес продвинутый","Индивидуальное занятие"]
-TRAINER_LIST = ["Юлия Николаева","Анна Громова"]
-LOCATION_LIST = ["🏠 Мои занятия (среда)","🏢 Студия на Ленина","🏢 Студия на Маркса"]
 PAGE_SIZE = 8
+
+def _split_setting(val: str) -> list[str]:
+    return [x.strip() for x in val.split("|") if x.strip()]
 
 async def build_main_text(session):
     today_start = datetime.now().replace(hour=0, minute=0, second=0)
@@ -165,18 +165,18 @@ async def cb_admin_main(call: CallbackQuery, session: AsyncSession, **kwargs):
     await call.message.edit_text(text, reply_markup=main_menu_kb())
     await call.answer()
 
-def templates_kb():
+def templates_kb(items: list[str]):
     b = InlineKeyboardBuilder()
-    for t in CLASS_TEMPLATES:
+    for t in items:
         b.button(text=t, callback_data=f"adm:title:{t[:40]}")
     b.button(text="✏️ Своё название", callback_data="adm:title:custom")
     b.button(text="← Меню",         callback_data="adm:main")
     b.adjust(1)
     return b.as_markup()
 
-def trainers_kb():
+def trainers_kb(items: list[str]):
     b = InlineKeyboardBuilder()
-    for t in TRAINER_LIST:
+    for t in items:
         b.button(text=t, callback_data=f"adm:trainer:{t}")
     b.button(text="✏️ Другой тренер", callback_data="adm:trainer:custom")
     b.button(text="◀️ Назад",         callback_data="adm:addclass")
@@ -189,9 +189,9 @@ def spots_kb():
     b.adjust(5)
     return b.as_markup()
 
-def location_kb():
+def location_kb(items: list[str]):
     b = InlineKeyboardBuilder()
-    for loc in LOCATION_LIST:
+    for loc in items:
         b.button(text=loc, callback_data=f"adm:loc:{loc}")
     b.button(text="✏️ Другое место", callback_data="adm:loc:custom")
     b.adjust(1)
@@ -205,30 +205,36 @@ def payment_type_kb():
     return b.as_markup()
 
 @router.callback_query(F.data == "adm:addclass")
-async def cb_addclass(call: CallbackQuery, state: FSMContext, **kwargs):
+async def cb_addclass(call: CallbackQuery, state: FSMContext, session: AsyncSession, **kwargs):
     if not await check_admin(call):
         return
+    from db.queries import get_setting
+    templates = _split_setting(await get_setting(session, "class_templates"))
     await state.clear()
     await state.set_state(AddClassFSM.title)
-    await call.message.edit_text("📅 <b>Добавить занятие — шаг 1/6</b>\n\nВыбери название:", reply_markup=templates_kb())
+    await call.message.edit_text("📅 <b>Добавить занятие — шаг 1/6</b>\n\nВыбери название:", reply_markup=templates_kb(templates))
     await call.answer()
 @router.callback_query(F.data.startswith("adm:title:"), AddClassFSM.title)
-async def cb_title(call: CallbackQuery, state: FSMContext, **kwargs):
+async def cb_title(call: CallbackQuery, state: FSMContext, session: AsyncSession, **kwargs):
     val = call.data[len("adm:title:"):]
     if val == "custom":
         await call.message.edit_text("Введи название занятия:")
         await call.answer()
         return
+    from db.queries import get_setting
+    trainers = _split_setting(await get_setting(session, "trainers"))
     await state.update_data(title=val)
     await state.set_state(AddClassFSM.trainer)
-    await call.message.edit_text("📅 <b>Шаг 2/6 — тренер</b>\n\nВыбери тренера:", reply_markup=trainers_kb())
+    await call.message.edit_text("📅 <b>Шаг 2/6 — тренер</b>\n\nВыбери тренера:", reply_markup=trainers_kb(trainers))
     await call.answer()
 
 @router.message(AddClassFSM.title)
-async def msg_title(message: Message, state: FSMContext, **kwargs):
+async def msg_title(message: Message, state: FSMContext, session: AsyncSession, **kwargs):
+    from db.queries import get_setting
+    trainers = _split_setting(await get_setting(session, "trainers"))
     await state.update_data(title=message.text.strip())
     await state.set_state(AddClassFSM.trainer)
-    await message.answer("📅 <b>Шаг 2/6 — тренер</b>\n\nВыбери тренера:", reply_markup=trainers_kb())
+    await message.answer("📅 <b>Шаг 2/6 — тренер</b>\n\nВыбери тренера:", reply_markup=trainers_kb(trainers))
 
 @router.callback_query(F.data.startswith("adm:trainer:"), AddClassFSM.trainer)
 async def cb_trainer(call: CallbackQuery, state: FSMContext, **kwargs):
@@ -320,21 +326,25 @@ async def msg_datetime(message: Message, state: FSMContext, **kwargs):
     await message.answer(f"✅ <b>{dt.strftime('%d.%m.%Y в %H:%M')}</b>\n\n📅 <b>Шаг 4/6 — количество мест</b>\n\nВыбери:", reply_markup=spots_kb())
 
 @router.callback_query(F.data.startswith("adm:spots:"), AddClassFSM.max_spots)
-async def cb_spots(call: CallbackQuery, state: FSMContext, **kwargs):
+async def cb_spots(call: CallbackQuery, state: FSMContext, session: AsyncSession, **kwargs):
+    from db.queries import get_setting
+    locations = _split_setting(await get_setting(session, "locations"))
     spots = int(call.data[len("adm:spots:"):])
     await state.update_data(spots=spots)
     await state.set_state(AddClassFSM.location)
-    await call.message.edit_text("📍 <b>Шаг 5/6 — место проведения</b>\n\nГде будет занятие?", reply_markup=location_kb())
+    await call.message.edit_text("📍 <b>Шаг 5/6 — место проведения</b>\n\nГде будет занятие?", reply_markup=location_kb(locations))
     await call.answer()
 
 @router.message(AddClassFSM.max_spots)
-async def msg_spots(message: Message, state: FSMContext, **kwargs):
+async def msg_spots(message: Message, state: FSMContext, session: AsyncSession, **kwargs):
     if not message.text.strip().isdigit():
         await message.answer("❌ Введи число, например: 8")
         return
+    from db.queries import get_setting
+    locations = _split_setting(await get_setting(session, "locations"))
     await state.update_data(spots=int(message.text.strip()))
     await state.set_state(AddClassFSM.location)
-    await message.answer("📍 <b>Шаг 5/6 — место проведения</b>\n\nГде будет занятие?", reply_markup=location_kb())
+    await message.answer("📍 <b>Шаг 5/6 — место проведения</b>\n\nГде будет занятие?", reply_markup=location_kb(locations))
 
 @router.callback_query(F.data.startswith("adm:loc:"), AddClassFSM.location)
 async def cb_location(call: CallbackQuery, state: FSMContext, **kwargs):
@@ -796,6 +806,7 @@ SETTINGS_LABELS = {
     "trainer_telegram": "🧘 Telegram тренера (@username)",
     "locations":        "📍 Студии/локации (через |)",
     "trainers":         "👤 Тренеры (через |)",
+    "class_templates":  "📋 Шаблоны занятий (через |)",
     "price_single":     "💰 Цена разовое (сум)",
     "price_pack_4":     "💰 Цена 4 занятия (сум)",
     "price_pack_8":     "💰 Цена 8 занятий (сум)",
@@ -833,6 +844,8 @@ async def cb_settings_edit(call: CallbackQuery, state: FSMContext, session: Asyn
         hints = "\n\n<i>Пример: Мои занятия|Студия на Ленина|Студия на Маркса</i>"
     elif key == "trainers":
         hints = "\n\n<i>Пример: Юлия Николаева|Анна Громова</i>"
+    elif key == "class_templates":
+        hints = "\n\n<i>Пример: Пилатес базовый|Пилатес продвинутый|Стретчинг</i>"
     b = InlineKeyboardBuilder()
     b.button(text="❌ Отмена", callback_data="adm:settings")
     b.adjust(1)
