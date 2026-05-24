@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Студия пилатеса</title>
+<title>Latina Mafia</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 :root {
@@ -13,7 +13,7 @@
   --border:  rgba(255,255,255,0.07);
   --gold:    #C9A84C;
   --gold-lt: #E4C97A;
-  --lilac:   #9D87C2;
+  --lilac:   #C05070;
   --text:    #EDE9E2;
   --muted:   rgba(237,233,226,0.45);
   --green:   #5BAF7A;
@@ -30,7 +30,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:va
 body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
-    radial-gradient(ellipse 70% 45% at 15% 0%,   rgba(157,135,194,.14) 0%,transparent 65%),
+    radial-gradient(ellipse 70% 45% at 15% 0%,   rgba(192,80,112,.14) 0%,transparent 65%),
     radial-gradient(ellipse 55% 40% at 90% 105%,  rgba(201,168,76,.10)  0%,transparent 60%);
 }
 
@@ -74,15 +74,16 @@ nav{
 /* ── HOME ── */
 .hero{
   position:relative;overflow:hidden;
-  background:linear-gradient(135deg,rgba(157,135,194,.18) 0%,rgba(201,168,76,.12) 100%);
+  background:linear-gradient(135deg,rgba(192,80,112,.18) 0%,rgba(201,168,76,.12) 100%);
   border:1px solid rgba(201,168,76,.18);
   border-radius:22px;padding:22px 20px 20px;
   margin-bottom:14px;
 }
 .hero-dancer{
-  position:absolute;right:-8px;top:-4px;width:110px;height:110px;
-  opacity:.13;pointer-events:none;
+  position:absolute;right:-8px;top:-4px;width:110px;height:125px;
+  opacity:.16;pointer-events:none;
 }
+.brand-lbl{font-size:11px;font-weight:900;letter-spacing:3px;color:var(--gold);text-transform:uppercase;margin-bottom:4px}
 .hero-sub{font-size:12px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px}
 .hero-name{font-size:24px;font-weight:800;letter-spacing:-.5px}
 .hero-name em{color:var(--gold);font-style:normal}
@@ -169,7 +170,7 @@ nav{
 .sub-hd p{font-size:13px;color:var(--muted);margin-top:3px}
 .sub-hero{
   position:relative;overflow:hidden;
-  background:linear-gradient(135deg,rgba(157,135,194,.16) 0%,rgba(201,168,76,.12) 100%);
+  background:linear-gradient(135deg,rgba(192,80,112,.16) 0%,rgba(201,168,76,.12) 100%);
   border:1px solid rgba(201,168,76,.2);border-radius:20px;
   padding:26px 22px 22px;margin-bottom:14px;text-align:center;
 }
@@ -279,24 +280,40 @@ nav{
   <div class="screen active" id="sc-home">
 
     <div class="hero">
-      <!-- Dancer silhouette -->
-      <svg class="hero-dancer" viewBox="0 0 100 120" fill="var(--gold-lt)" xmlns="http://www.w3.org/2000/svg">
-        <!-- Head -->
-        <circle cx="62" cy="10" r="7"/>
-        <!-- Body leaning back in arabesque -->
-        <path d="M62 17 Q58 32 50 42 Q42 52 36 58" stroke="var(--gold-lt)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
-        <!-- Back leg up (arabesque) -->
-        <path d="M50 42 Q60 36 75 28 Q85 22 90 18" stroke="var(--gold-lt)" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <!-- Dancing couple silhouette -->
+      <svg class="hero-dancer" viewBox="0 0 110 125" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- WOMAN (left) -->
+        <circle cx="34" cy="12" r="7" fill="var(--gold-lt)"/>
+        <!-- Woman torso -->
+        <path d="M34 19 C33 27 32 34 31 40" stroke="var(--gold-lt)" stroke-width="4" stroke-linecap="round"/>
+        <!-- Woman arm raised to man's hand -->
+        <path d="M35 24 C43 17 52 11 58 8" stroke="var(--gold-lt)" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- Woman other arm (held by man at waist) -->
+        <path d="M32 30 C38 30 45 29 50 28" stroke="var(--gold-lt)" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- Flared dress — multiple lines for fullness -->
+        <path d="M31 40 C24 52 18 62 14 74" stroke="var(--gold-lt)" stroke-width="3" stroke-linecap="round"/>
+        <path d="M31 40 C28 52 26 64 25 76" stroke="var(--gold-lt)" stroke-width="2" stroke-linecap="round"/>
+        <path d="M31 40 C36 52 40 62 42 72" stroke="var(--gold-lt)" stroke-width="2.5" stroke-linecap="round"/>
         <!-- Standing leg -->
-        <path d="M50 42 Q48 58 46 70 Q44 82 44 95" stroke="var(--gold-lt)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
-        <!-- Front arm -->
-        <path d="M56 28 Q46 22 38 18 Q32 15 28 14" stroke="var(--gold-lt)" stroke-width="3" fill="none" stroke-linecap="round"/>
-        <!-- Back arm flowing -->
-        <path d="M58 30 Q66 38 70 48" stroke="var(--gold-lt)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-        <!-- Foot -->
-        <path d="M44 95 Q42 99 40 100" stroke="var(--gold-lt)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path d="M31 40 C28 55 26 68 24 82" stroke="var(--gold-lt)" stroke-width="3.5" stroke-linecap="round"/>
+        <!-- MAN (right) -->
+        <circle cx="76" cy="12" r="7" fill="var(--gold-lt)"/>
+        <!-- Fedora brim -->
+        <ellipse cx="76" cy="6" rx="12" ry="3.5" fill="var(--gold-lt)"/>
+        <!-- Fedora crown -->
+        <path d="M64 6 Q76 -1 88 6" fill="var(--gold-lt)"/>
+        <!-- Man torso -->
+        <path d="M76 19 C75 28 74 36 73 44" stroke="var(--gold-lt)" stroke-width="4.5" stroke-linecap="round"/>
+        <!-- Man arm raised holding woman's hand -->
+        <path d="M77 22 C72 16 66 11 58 8" stroke="var(--gold-lt)" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- Man arm around woman's waist -->
+        <path d="M74 30 C66 28 56 28 50 28" stroke="var(--gold-lt)" stroke-width="3" stroke-linecap="round"/>
+        <!-- Man legs -->
+        <path d="M73 44 C68 56 64 70 60 83" stroke="var(--gold-lt)" stroke-width="3.5" stroke-linecap="round"/>
+        <path d="M73 44 C76 56 80 70 84 81" stroke="var(--gold-lt)" stroke-width="3.5" stroke-linecap="round"/>
       </svg>
 
+      <div class="brand-lbl">LATINA MAFIA</div>
       <div class="hero-sub">Добро пожаловать</div>
       <div class="hero-name">Привет, <em id="h-name">…</em></div>
       <div class="hero-row">
@@ -353,7 +370,7 @@ nav{
   <div class="screen" id="sc-sub">
     <div class="sub-hd">
       <h2>Абонемент</h2>
-      <p>Управление и оплата</p>
+      <p>Latina Mafia · управление и оплата</p>
     </div>
     <div id="sub-body"><div class="loader"><div class="spin"></div></div></div>
   </div>
@@ -506,7 +523,7 @@ async function loadHome() {
       nxt.innerHTML = d.next_class+'<br><span style="font-size:12px;color:var(--muted);font-weight:500">'+(d.days_until||'')+'</span>';
     } else nxt.textContent='—';
     if (!d.upcoming?.length) {
-      el.innerHTML='<div class="empty"><div class="ico">🌿</div><p>Нет ближайших занятий</p></div>';
+      el.innerHTML='<div class="empty"><div class="ico">💃</div><p>Нет ближайших занятий</p></div>';
       return;
     }
     el.innerHTML = d.upcoming.map(c=>ccHTML(c)).join('');
@@ -645,12 +662,22 @@ async function loadSub() {
     </div>`;
   } else {
     hero = `<div class="sub-hero">
-      <svg style="width:56px;height:56px;margin-bottom:12px;opacity:.6" viewBox="0 0 100 120" fill="var(--gold-lt)">
-        <circle cx="62" cy="10" r="7"/>
-        <path d="M62 17 Q58 32 50 42 Q42 52 36 58" stroke="var(--gold-lt)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
-        <path d="M50 42 Q60 36 75 28 Q85 22 90 18" stroke="var(--gold-lt)" stroke-width="3" fill="none" stroke-linecap="round"/>
-        <path d="M50 42 Q48 58 46 70 Q44 82 44 95" stroke="var(--gold-lt)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
-        <path d="M56 28 Q46 22 38 18 Q32 15 28 14" stroke="var(--gold-lt)" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <svg style="width:64px;height:72px;margin-bottom:12px;opacity:.55" viewBox="0 0 110 125" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="34" cy="12" r="7" fill="var(--gold-lt)"/>
+        <path d="M34 19 C33 27 32 34 31 40" stroke="var(--gold-lt)" stroke-width="4" stroke-linecap="round"/>
+        <path d="M35 24 C43 17 52 11 58 8" stroke="var(--gold-lt)" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M32 30 C38 30 45 29 50 28" stroke="var(--gold-lt)" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M31 40 C24 52 18 62 14 74" stroke="var(--gold-lt)" stroke-width="3" stroke-linecap="round"/>
+        <path d="M31 40 C36 52 40 62 42 72" stroke="var(--gold-lt)" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M31 40 C28 55 26 68 24 82" stroke="var(--gold-lt)" stroke-width="3.5" stroke-linecap="round"/>
+        <circle cx="76" cy="12" r="7" fill="var(--gold-lt)"/>
+        <ellipse cx="76" cy="6" rx="12" ry="3.5" fill="var(--gold-lt)"/>
+        <path d="M64 6 Q76 -1 88 6" fill="var(--gold-lt)"/>
+        <path d="M76 19 C75 28 74 36 73 44" stroke="var(--gold-lt)" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M77 22 C72 16 66 11 58 8" stroke="var(--gold-lt)" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M74 30 C66 28 56 28 50 28" stroke="var(--gold-lt)" stroke-width="3" stroke-linecap="round"/>
+        <path d="M73 44 C68 56 64 70 60 83" stroke="var(--gold-lt)" stroke-width="3.5" stroke-linecap="round"/>
+        <path d="M73 44 C76 56 80 70 84 81" stroke="var(--gold-lt)" stroke-width="3.5" stroke-linecap="round"/>
       </svg>
       <div style="font-size:16px;font-weight:700;margin-bottom:6px">Абонемента нет</div>
       <div style="font-size:13px;color:var(--muted)">Выбери подходящий тариф</div>
