@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Header
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, text
 from db.engine import AsyncSessionFactory
 from db.models import Booking, BookingStatus, Class, Subscription, User
 from db.queries import (
@@ -13,6 +14,16 @@ from db.queries import (
 from services.attendance import verify_token
 
 router = APIRouter(prefix="/miniapp/api")
+
+@router.get("/health")
+async def api_health():
+    try:
+        async with AsyncSessionFactory() as session:
+            await session.execute(text("SELECT 1"))
+        return {"status": "ok", "db": "ok", "ts": datetime.now().isoformat()}
+    except Exception as e:
+        return JSONResponse(status_code=503, content={"status": "error", "detail": str(e)})
+
 MONTHS_SHORT = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"]
 DAYS_SHORT = ["пн","вт","ср","чт","пт","сб","вс"]
 
