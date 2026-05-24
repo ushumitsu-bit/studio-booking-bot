@@ -71,6 +71,7 @@ services:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./miniapp:/opt/pilates-bot/miniapp:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/log/nginx:/var/log/nginx  # fail2ban читает логи с хоста
     depends_on:
       - webhook
 

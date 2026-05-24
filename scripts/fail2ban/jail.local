@@ -1,0 +1,34 @@
+[DEFAULT]
+bantime  = 1h
+findtime = 10m
+maxretry = 5
+banaction = ufw
+
+# ─── SSH ──────────────────────────────────────────────────────────
+[sshd]
+enabled  = true
+port     = ssh
+filter   = sshd
+logpath  = /var/log/auth.log
+maxretry = 5
+bantime  = 24h
+
+# ─── nginx: слишком много 4xx (сканеры, перебор путей) ───────────
+[nginx-4xx]
+enabled  = true
+port     = http,https
+filter   = nginx-4xx
+logpath  = /var/log/nginx/access.log
+maxretry = 30
+findtime = 1m
+bantime  = 1h
+
+# ─── nginx: rate limit (429) ─────────────────────────────────────
+[nginx-limit-req]
+enabled  = true
+port     = http,https
+filter   = nginx-limit-req
+logpath  = /var/log/nginx/error.log
+maxretry = 10
+findtime = 1m
+bantime  = 30m

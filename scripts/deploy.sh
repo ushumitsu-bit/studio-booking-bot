@@ -18,12 +18,13 @@ info()  { echo -e "${GREEN}[INFO]${NC}  $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 
 # ─── 1. Зависимости системы ────────────────────────────────────
-info "Обновляем пакеты и ставим Docker..."
+info "Обновляем пакеты и ставим Docker + fail2ban..."
 apt-get update -qq
 apt-get install -y -qq \
     docker.io docker-compose-v2 \
     certbot python3-certbot-nginx \
-    nginx git curl ufw
+    nginx git curl ufw \
+    fail2ban
 
 systemctl enable --now docker
 
@@ -70,20 +71,36 @@ fi
 info "Настраиваем nginx с доменом $DOMAIN..."
 sed -i "s/pilates\.fapass\.xyz/$DOMAIN/g" "$REPO_DIR/nginx.conf"
 
-# ─── 7. Запуск через Docker Compose ───────────────────────────
+# ─── 7. fail2ban ──────────────────────────────────────────────
+info "Настраиваем fail2ban..."
+mkdir -p /var/log/nginx
+
+# Копируем конфиги
+cp "$REPO_DIR/scripts/fail2ban/jail.local"    /etc/fail2ban/jail.local
+cp "$REPO_DIR/scripts/fail2ban/nginx-4xx.conf" /etc/fail2ban/filter.d/nginx-4xx.conf
+
+# nginx-limit-req уже есть в стандартной поставке fail2ban
+systemctl enable --now fail2ban
+systemctl restart fail2ban
+info "fail2ban запущен ✓"
+
+# ─── 8. Запуск через Docker Compose ───────────────────────────
 info "Собираем и запускаем контейнеры..."
 docker compose build --no-cache
 docker compose up -d
 
-# ─── 8. Миграции ──────────────────────────────────────────────
+# ─── 9. Миграции ──────────────────────────────────────────────
 info "Ждём запуска PostgreSQL..."
 sleep 5
 docker compose exec -T bot alembic upgrade head
 info "Миграции применены ✓"
 
-# ─── 9. Проверка ──────────────────────────────────────────────
+# ─── 10. Проверка ─────────────────────────────────────────────
 info "Статус контейнеров:"
 docker compose ps
+
+info "Статус fail2ban:"
+fail2ban-client status
 
 info "
 ╔══════════════════════════════════════════════════════╗
@@ -96,5 +113,9 @@ info "
 ║  Логи:    docker compose logs -f bot                 ║
 ║  Стоп:    docker compose down                        ║
 ║  Рестарт: docker compose restart bot                 ║
+║                                                      ║
+║  fail2ban:  fail2ban-client status                   ║
+║  Забанены:  fail2ban-client status nginx-4xx         ║
+║  Разбанить: fail2ban-client unban <IP>               ║
 ╚══════════════════════════════════════════════════════╝
 "
