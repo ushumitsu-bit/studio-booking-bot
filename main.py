@@ -5,6 +5,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.types import MenuButtonWebApp, WebAppInfo
 
 from bot.handlers import client, admin, payments
 from bot.middlewares.auth import AuthMiddleware
@@ -40,6 +41,14 @@ async def main():
     dp.include_router(client.router)
     dp.include_router(payments.router)
     dp.include_router(admin.router)
+
+    # Кнопка открытия мини-апп в чате с ботом
+    await bot.set_chat_menu_button(
+        menu_button=MenuButtonWebApp(
+            text="Открыть",
+            web_app=WebAppInfo(url=f"{settings.WEBHOOK_HOST}/miniapp/"),
+        )
+    )
 
     # Планировщик (напоминания, пинки)
     scheduler = await setup_scheduler(bot)
