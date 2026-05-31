@@ -427,7 +427,7 @@ let dots = new Set(), selDay = null, cur = 'home', sheetData = null;
 async function api(path, opts={}) {
   try {
     const r = await fetch('/miniapp/api'+path, {
-      headers:{'X-User-Id':String(uid),'Content-Type':'application/json'},
+      headers:{'X-Telegram-Init-Data': tg?.initData || '', 'Content-Type':'application/json'},
       ...opts
     });
     if (!r.ok) throw new Error('HTTP '+r.status);
