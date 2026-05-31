@@ -1,3 +1,4 @@
+import html as _html
 from datetime import datetime, timedelta
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -598,10 +599,18 @@ async def cb_cancel_class(call: CallbackQuery, session: AsyncSession, **kwargs):
         return
     result = await session.execute(select(Booking).where(Booking.class_id == cls_id, Booking.status == BookingStatus.CONFIRMED))
     bookings = result.scalars().all()
+    from db.queries import get_active_subscription
     for bk in bookings:
         bk.status = BookingStatus.CANCELLED
+        sub = await get_active_subscription(session, bk.user_id)
+        if sub:
+            sub.classes_left += 1
         try:
-            await call.bot.send_message(bk.user_id, f"❌ <b>Занятие отменено</b>\n\n{cls.title} — {cls.starts_at.strftime('%d.%m в %H:%M')}\n\nИзвини за неудобство! 🙏")
+            await call.bot.send_message(
+                bk.user_id,
+                f"❌ <b>Занятие отменено</b>\n\n{cls.title} — {cls.starts_at.strftime('%d.%m в %H:%M')}\n\n"
+                f"Занятие возвращено в твой абонемент. Извини за неудобство! 🙏",
+            )
         except Exception:
             pass
     cls.is_cancelled = True
@@ -888,13 +897,15 @@ async def cb_broadcast_start(call: CallbackQuery, state: FSMContext, **kwargs):
 
 @router.message(BroadcastFSM.text)
 async def msg_broadcast_text(message: Message, state: FSMContext, **kwargs):
-    await state.update_data(text=message.text)
+    raw = message.text or ""
+    await state.update_data(text=raw)
     await state.set_state(BroadcastFSM.confirm)
     b = InlineKeyboardBuilder()
     b.button(text="✅ Отправить всем", callback_data="adm:bcast_go")
     b.button(text="❌ Отмена",         callback_data="adm:main")
     b.adjust(1)
-    await message.answer(f"📣 <b>Предпросмотр:</b>\n\n{message.text}\n\nОтправить всем?", reply_markup=b.as_markup())
+    preview = _html.escape(raw)
+    await message.answer(f"📣 <b>Предпросмотр:</b>\n\n{preview}\n\nОтправить всем?", reply_markup=b.as_markup())
 
 @router.callback_query(F.data == "adm:bcast_go", BroadcastFSM.confirm)
 async def cb_broadcast_go(call: CallbackQuery, session: AsyncSession, state: FSMContext, **kwargs):
@@ -906,9 +917,10 @@ async def cb_broadcast_go(call: CallbackQuery, session: AsyncSession, state: FSM
     users = await get_all_active_users(session)
     await call.message.edit_text(f"⏳ Отправляю {len(users)} клиентам...")
     sent, failed = 0, 0
+    safe_text = _html.escape(text)
     for u in users:
         try:
-            await call.bot.send_message(u.id, text)
+            await call.bot.send_message(u.id, safe_text)
             sent += 1
         except Exception:
             failed += 1

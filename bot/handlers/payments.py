@@ -88,8 +88,10 @@ async def initiate_payment(call: CallbackQuery, session: AsyncSession, db_user: 
             f"✅ <b>Счёт создан!</b>\n\n"
             f"Тариф: <b>{description}</b>\n"
             f"Сумма: <b>{amount:,} сум</b>\n\n"
-            f"Нажми кнопку ниже, чтобы перейти к оплате.\n"
-            f"После успешной оплаты абонемент активируется <b>автоматически</b> 🎉",
+            f"1️⃣ Нажми «Оплатить» — откроется Payme\n"
+            f"2️⃣ Оплати удобным способом (Uzcard, Humo, Visa/MC)\n"
+            f"3️⃣ Вернись в бот — абонемент активируется и я пришлю подтверждение 🎉\n\n"
+            f"<i>Оплата обрабатывается автоматически, ждать не нужно.</i>",
             reply_markup=payment_link_keyboard(payment_url),
         )
 

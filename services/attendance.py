@@ -1,9 +1,9 @@
 """
 QR-токены для системы посещаемости.
 
-Токен: "{class_id}:{window}:{hmac12}"
+Токен: "{class_id}:{window}:{hmac32}"
 - window = unix_time // 3600  (окно 1 час, действует ±1 окно → до 2 часов)
-- hmac12  = первые 12 символов HMAC-SHA256(secret, "{class_id}:{window}")
+- hmac32  = первые 32 символа HMAC-SHA256(secret, "{class_id}:{window}")
 
 Токен stateless — не хранится в БД, проверяется по HMAC.
 """
@@ -18,7 +18,7 @@ from config import settings
 
 def _sign(class_id: int, window: int) -> str:
     msg = f"{class_id}:{window}".encode()
-    return hmac.new(settings.ATTENDANCE_SECRET.encode(), msg, hashlib.sha256).hexdigest()[:12]
+    return hmac.new(settings.ATTENDANCE_SECRET.encode(), msg, hashlib.sha256).hexdigest()[:32]
 
 
 def make_token(class_id: int) -> str:

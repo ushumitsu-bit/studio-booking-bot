@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
-from db.models import User, Class, Booking, BookingStatus, Subscription, SubscriptionType
+
+from db.models import Booking, BookingStatus, Class, Subscription, SubscriptionType, User
+from tests.conftest import make_init_data
 
 UID = 111_000_001  # тестовый Telegram ID
 
@@ -36,22 +38,20 @@ async def make_sub(db, user_id=UID, classes_left=8):
     return s
 
 
-HDR = {"X-User-Id": str(UID)}
+def hdr(user_id: int = UID) -> dict:
+    return {"X-Telegram-Init-Data": make_init_data(user_id)}
 
 
 # ── /home ─────────────────────────────────────────────────────────
 
-async def test_home_unknown_user(api_client):
-    r = await api_client.get("/miniapp/api/home", headers={"X-User-Id": "999"})
-    assert r.status_code == 200
-    d = r.json()
-    assert d["name"] == ""
-    assert d["classes_left"] == 0
+async def test_home_no_auth(api_client):
+    r = await api_client.get("/miniapp/api/home")
+    assert r.status_code == 422  # missing header
 
 
 async def test_home_known_user_no_sub(api_client, db):
     await make_user(db)
-    r = await api_client.get("/miniapp/api/home", headers=HDR)
+    r = await api_client.get("/miniapp/api/home", headers=hdr())
     d = r.json()
     assert "Анна" in d["name"]
     assert d["classes_left"] == 0
@@ -60,7 +60,7 @@ async def test_home_known_user_no_sub(api_client, db):
 async def test_home_with_subscription(api_client, db):
     await make_user(db)
     await make_sub(db, classes_left=5)
-    r = await api_client.get("/miniapp/api/home", headers=HDR)
+    r = await api_client.get("/miniapp/api/home", headers=hdr())
     assert r.json()["classes_left"] == 5
 
 
@@ -81,7 +81,8 @@ async def test_schedule_shows_class_dot(api_client, db):
 
 
 async def test_day_no_classes(api_client):
-    r = await api_client.get("/miniapp/api/schedule/day", params={"date": "2030-01-15"})
+    r = await api_client.get("/miniapp/api/schedule/day",
+                              params={"date": "2030-01-15"}, headers=hdr())
     assert r.status_code == 200
     assert r.json()["classes"] == []
 
@@ -90,7 +91,7 @@ async def test_day_returns_class(api_client, db):
     cls = await make_class(db, days=3)
     date_str = cls.starts_at.strftime("%Y-%m-%d")
     r = await api_client.get("/miniapp/api/schedule/day",
-                              params={"date": date_str}, headers=HDR)
+                              params={"date": date_str}, headers=hdr())
     items = r.json()["classes"]
     assert len(items) == 1
     assert items[0]["title"] == "Bachata"
@@ -101,17 +102,15 @@ async def test_day_returns_class(api_client, db):
 # ── /book ─────────────────────────────────────────────────────────
 
 async def test_book_no_auth(api_client):
-    r = await api_client.post("/miniapp/api/book",
-                               json={"class_id": 1},
-                               headers={"X-User-Id": "0"})
-    assert r.json()["ok"] is False
+    r = await api_client.post("/miniapp/api/book", json={"class_id": 1})
+    assert r.status_code == 422  # missing header
 
 
 async def test_book_no_subscription(api_client, db):
     await make_user(db)
     cls = await make_class(db)
     r = await api_client.post("/miniapp/api/book",
-                               json={"class_id": cls.id}, headers=HDR)
+                               json={"class_id": cls.id}, headers=hdr())
     assert r.json()["ok"] is False
     assert "абонемент" in r.json()["error"].lower()
 
@@ -121,7 +120,7 @@ async def test_book_success(api_client, db):
     await make_sub(db)
     cls = await make_class(db)
     r = await api_client.post("/miniapp/api/book",
-                               json={"class_id": cls.id}, headers=HDR)
+                               json={"class_id": cls.id}, headers=hdr())
     assert r.json()["ok"] is True
 
 
@@ -129,8 +128,8 @@ async def test_book_already_booked(api_client, db):
     await make_user(db)
     await make_sub(db, classes_left=8)
     cls = await make_class(db)
-    await api_client.post("/miniapp/api/book", json={"class_id": cls.id}, headers=HDR)
-    r = await api_client.post("/miniapp/api/book", json={"class_id": cls.id}, headers=HDR)
+    await api_client.post("/miniapp/api/book", json={"class_id": cls.id}, headers=hdr())
+    r = await api_client.post("/miniapp/api/book", json={"class_id": cls.id}, headers=hdr())
     assert r.json()["ok"] is False
 
 
@@ -139,7 +138,7 @@ async def test_book_no_spots(api_client, db):
     await make_sub(db)
     cls = await make_class(db, spots=0)
     r = await api_client.post("/miniapp/api/book",
-                               json={"class_id": cls.id}, headers=HDR)
+                               json={"class_id": cls.id}, headers=hdr())
     assert r.json()["ok"] is False
 
 
@@ -147,7 +146,7 @@ async def test_book_no_spots(api_client, db):
 
 async def test_bookings_empty(api_client, db):
     await make_user(db)
-    r = await api_client.get("/miniapp/api/bookings", headers=HDR)
+    r = await api_client.get("/miniapp/api/bookings", headers=hdr())
     assert r.json()["bookings"] == []
 
 
@@ -155,23 +154,57 @@ async def test_cancel_booking(api_client, db):
     await make_user(db)
     await make_sub(db)
     cls = await make_class(db)
-    await api_client.post("/miniapp/api/book", json={"class_id": cls.id}, headers=HDR)
+    await api_client.post("/miniapp/api/book", json={"class_id": cls.id}, headers=hdr())
 
-    bks = (await api_client.get("/miniapp/api/bookings", headers=HDR)).json()["bookings"]
+    bks = (await api_client.get("/miniapp/api/bookings", headers=hdr())).json()["bookings"]
     assert len(bks) == 1
 
     r = await api_client.post("/miniapp/api/cancel",
-                               json={"booking_id": bks[0]["booking_id"]})
+                               json={"booking_id": bks[0]["booking_id"]}, headers=hdr())
     assert r.json()["ok"] is True
 
-    bks_after = (await api_client.get("/miniapp/api/bookings", headers=HDR)).json()["bookings"]
+    bks_after = (await api_client.get("/miniapp/api/bookings", headers=hdr())).json()["bookings"]
     assert bks_after == []
+
+
+async def test_cancel_restores_subscription(api_client, db):
+    """Отмена записи возвращает занятие в абонемент."""
+    await make_user(db)
+    await make_sub(db, classes_left=8)
+    cls = await make_class(db)
+    await api_client.post("/miniapp/api/book", json={"class_id": cls.id}, headers=hdr())
+
+    sub_before = (await api_client.get("/miniapp/api/subscription", headers=hdr())).json()
+    assert sub_before["classes_left"] == 7
+
+    bks = (await api_client.get("/miniapp/api/bookings", headers=hdr())).json()["bookings"]
+    await api_client.post("/miniapp/api/cancel",
+                           json={"booking_id": bks[0]["booking_id"]}, headers=hdr())
+
+    sub_after = (await api_client.get("/miniapp/api/subscription", headers=hdr())).json()
+    assert sub_after["classes_left"] == 8
+
+
+async def test_cancel_other_user_booking(api_client, db):
+    """Нельзя отменить чужую запись."""
+    await make_user(db, tg_id=UID)
+    await make_user(db, tg_id=UID + 1, name="Другой Пользователь")
+    await make_sub(db, user_id=UID)
+    cls = await make_class(db)
+    await api_client.post("/miniapp/api/book", json={"class_id": cls.id}, headers=hdr(UID))
+
+    bks = (await api_client.get("/miniapp/api/bookings", headers=hdr(UID))).json()["bookings"]
+    r = await api_client.post("/miniapp/api/cancel",
+                               json={"booking_id": bks[0]["booking_id"]},
+                               headers=hdr(UID + 1))
+    assert r.json()["ok"] is False
 
 
 # ── /subscription ─────────────────────────────────────────────────
 
-async def test_subscription_no_user(api_client):
-    r = await api_client.get("/miniapp/api/subscription", headers={"X-User-Id": "999"})
+async def test_subscription_no_sub(api_client, db):
+    await make_user(db)
+    r = await api_client.get("/miniapp/api/subscription", headers=hdr())
     d = r.json()
     assert d["classes_left"] == 0
     assert d["total"] == 0
@@ -180,7 +213,7 @@ async def test_subscription_no_user(api_client):
 async def test_subscription_active(api_client, db):
     await make_user(db)
     await make_sub(db, classes_left=6)
-    r = await api_client.get("/miniapp/api/subscription", headers=HDR)
+    r = await api_client.get("/miniapp/api/subscription", headers=hdr())
     d = r.json()
     assert d["classes_left"] == 6
     assert d["total"] == 8   # PACK_8

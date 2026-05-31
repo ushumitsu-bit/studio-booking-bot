@@ -178,8 +178,9 @@ async def show_schedule(event, session: AsyncSession, db_user: User, **kwargs):
     # Клавиатура навигации
     b = InlineKeyboardBuilder()
 
-    # Кнопки переключения дней
-    nav_row = []
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_offset = next((i for i, k in enumerate(day_keys) if k == today_str), None)
+
     if day_offset > 0:
         prev_dt  = datetime.strptime(day_keys[day_offset - 1], "%Y-%m-%d")
         prev_day = DAYS_SHORT.get(prev_dt.strftime("%A"), "")
@@ -190,6 +191,10 @@ async def show_schedule(event, session: AsyncSession, db_user: User, **kwargs):
         b.button(text=f"{next_day} {next_dt.strftime('%d.%m')} ▶", callback_data=f"schedule:{day_offset + 1}")
 
     b.adjust(2)
+
+    if today_offset is not None and today_offset != day_offset:
+        b.button(text="📅 Сегодня", callback_data=f"schedule:{today_offset}")
+        b.adjust(1)
 
     # Кнопки записи на занятия этого дня
     for cls in sorted(current_classes, key=lambda c: c.starts_at):
@@ -420,8 +425,13 @@ async def cancel_booking_cb(call: CallbackQuery, session: AsyncSession, **kwargs
 
 
 @router.callback_query(F.data.startswith("confirm_cancel_"))
-async def confirm_cancel_cb(call: CallbackQuery, session: AsyncSession, **kwargs):
+async def confirm_cancel_cb(call: CallbackQuery, session: AsyncSession, db_user: User, **kwargs):
     booking_id = int(call.data.split("_")[2])
+    from db.models import Booking as _Booking
+    bk = await session.get(_Booking, booking_id)
+    if not bk or bk.user_id != db_user.id:
+        await call.answer("Запись не найдена", show_alert=True)
+        return
     await cancel_booking(session, booking_id)
 
     b = InlineKeyboardBuilder()
@@ -507,17 +517,22 @@ async def individual_lesson(call: CallbackQuery, session: AsyncSession, **kwargs
 # ─────────────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "contacts")
-async def contacts(call: CallbackQuery, **kwargs):
+async def contacts(call: CallbackQuery, session: AsyncSession, **kwargs):
+    from db.queries import get_setting
+    name     = await get_setting(session, "studio_name",     "Студия")
+    address  = await get_setting(session, "studio_address",  "—")
+    phone    = await get_setting(session, "studio_phone",    "—")
+    insta    = await get_setting(session, "studio_instagram", "—")
+    schedule = await get_setting(session, "studio_schedule",  "—")
     b = InlineKeyboardBuilder()
     b.button(text="← Меню", callback_data="menu")
     b.adjust(1)
     await call.message.edit_text(
-        "📍 <b>Студия пилатеса</b>\n\n"
-        "📍 Адрес: ул. Примерная, 10\n"
-        "📞 Телефон: +7 (999) 123-45-67\n"
-        "💬 Instagram: @pilates_studio\n\n"
-        "🕐 Пн–Пт: 8:00–21:00\n"
-        "🕐 Сб–Вс: 9:00–18:00",
+        f"📍 <b>{name}</b>\n\n"
+        f"📍 Адрес: {address}\n"
+        f"📞 Телефон: {phone}\n"
+        f"💬 Instagram: {insta}\n\n"
+        f"🕐 {schedule}",
         reply_markup=b.as_markup(),
     )
     await call.answer()

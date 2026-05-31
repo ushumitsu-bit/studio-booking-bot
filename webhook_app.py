@@ -71,7 +71,12 @@ def create_webhook_app(bot: Bot) -> web.Application:
 def create_fastapi_app() -> FastAPI:
     from miniapp_api import router as miniapp_router
     app = FastAPI()
-    app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[settings.WEBHOOK_HOST],
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type", "X-Telegram-Init-Data"],
+    )
     app.include_router(miniapp_router)
     return app
 

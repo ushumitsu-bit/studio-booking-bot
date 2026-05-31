@@ -113,11 +113,15 @@ async def create_booking(session: AsyncSession, user_id: int, class_id: int) -> 
 
 
 async def cancel_booking(session: AsyncSession, booking_id: int):
-    await session.execute(
-        update(Booking)
-        .where(Booking.id == booking_id)
-        .values(status=BookingStatus.CANCELLED)
-    )
+    booking = await session.get(Booking, booking_id)
+    if not booking or booking.status != BookingStatus.CONFIRMED:
+        return
+    cls = await session.get(Class, booking.class_id)
+    if cls and cls.starts_at > datetime.utcnow():
+        sub = await get_active_subscription(session, booking.user_id)
+        if sub:
+            sub.classes_left += 1
+    booking.status = BookingStatus.CANCELLED
     await session.commit()
 
 

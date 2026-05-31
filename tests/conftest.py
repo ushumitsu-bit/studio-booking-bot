@@ -1,7 +1,11 @@
+import hashlib
+import hmac
+import json
 import os
+import time
+import urllib.parse
 
-# Устанавливаем фейковые env-переменные ДО импорта проекта,
-# чтобы pydantic-settings не требовал реальный .env
+# Фейковые env ДО импорта проекта
 os.environ.setdefault("BOT_TOKEN", "123456789:test_token_placeholder")
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@localhost/testdb")
 os.environ.setdefault("PAYME_MERCHANT_ID", "test_merchant")
@@ -17,6 +21,20 @@ from httpx import AsyncClient, ASGITransport
 from db.models import Base
 
 TEST_DB = "sqlite+aiosqlite:///:memory:"
+_BOT_TOKEN = os.environ["BOT_TOKEN"]
+
+
+def make_init_data(user_id: int, first_name: str = "Test") -> str:
+    """Generate a valid Telegram WebApp initData string for tests."""
+    user = {"id": user_id, "first_name": first_name, "language_code": "ru"}
+    params = {
+        "user": json.dumps(user, separators=(",", ":")),
+        "auth_date": str(int(time.time())),
+    }
+    check_string = "\n".join(f"{k}={v}" for k, v in sorted(params.items()))
+    secret = hmac.new(b"WebAppData", _BOT_TOKEN.encode(), hashlib.sha256).digest()
+    params["hash"] = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
+    return urllib.parse.urlencode(params)
 
 
 @pytest_asyncio.fixture
