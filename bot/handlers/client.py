@@ -622,7 +622,7 @@ async def show_profile(call: CallbackQuery, db_user: User, **kwargs):
         pref=pref_label(db_user.class_preference, lang),
         health=db_user.health_notes or "—",
         streak=db_user.streak_count or 0,
-        lang=lang_label(lang, lang),
+        language=lang_label(lang, lang),
     )
     b = InlineKeyboardBuilder()
     b.button(text=t("btn_edit_profile", lang),  callback_data="edit_profile")

@@ -282,7 +282,7 @@ _T: dict[str, dict[str, str]] = {
 
     # ── Профиль ──────────────────────────────────────────────────
     "profile_title": {
-        "ru": "👤 <b>Мой профиль</b>\n\n👤 {name}\n🚻 Пол: {gender}\n🧘 Уровень: {level}\n💃 Формат: {pref}\n💊 Здоровье: {health}\n🔥 Серия: {streak} зан.\n🌐 Язык: {lang}",
+        "ru": "👤 <b>Мой профиль</b>\n\n👤 {name}\n🚻 Пол: {gender}\n🧘 Уровень: {level}\n💃 Формат: {pref}\n💊 Здоровье: {health}\n🔥 Серия: {streak} зан.\n🌐 Язык: {language}",
         "uz": "👤 <b>Mening profilim</b>\n\n👤 {name}\n🚻 Jins: {gender}\n🧘 Daraja: {level}\n💃 Format: {pref}\n💊 Sog'liq: {health}\n🔥 Seriya: {streak} dars\n🌐 Til: {lang}",
         "en": "👤 <b>My profile</b>\n\n👤 {name}\n🚻 Gender: {gender}\n🧘 Level: {level}\n💃 Format: {pref}\n💊 Health: {health}\n🔥 Streak: {streak} classes\n🌐 Language: {lang}",
     },
