@@ -82,9 +82,11 @@ def upgrade() -> None:
     """))
 
     # Тип TRIAL для абонементов
-    conn.execute(sa.text(
-        "ALTER TYPE subscriptiontype ADD VALUE IF NOT EXISTS 'trial'"
-    ))
+    # ALTER TYPE ... ADD VALUE нельзя выполнить внутри транзакции в PostgreSQL
+    with op.get_context().autocommit_block():
+        op.execute(sa.text(
+            "ALTER TYPE subscriptiontype ADD VALUE IF NOT EXISTS 'trial'"
+        ))
 
 
 def downgrade() -> None:

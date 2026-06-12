@@ -559,7 +559,7 @@ async def cb_manual_book_search(message: Message, state: FSMContext, session: As
         select(User).where(
             User.is_active == True,
             (func.lower(User.full_name).contains(query)) |
-            (func.lower(User.username).contains(query))
+            (func.lower(func.coalesce(User.username, '')).contains(query))
         ).limit(10)
     )
     users = result.scalars().all()

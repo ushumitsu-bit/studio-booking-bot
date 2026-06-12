@@ -46,6 +46,24 @@ async def start_onboarding(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("onb:lang:"), OnboardingFSM.language)
 async def onb_language(call: CallbackQuery, state: FSMContext, db_user: User, session: AsyncSession, **kwargs):
     lang = call.data.split(":")[2]
+    data = await state.get_data()
+
+    if data.get("language_only"):
+        # Только смена языка из профиля — не трогаем пол/уровень/предпочтения
+        lang_map = {"ru": UserLanguage.RU, "uz": UserLanguage.UZ, "en": UserLanguage.EN}
+        db_user.language = lang_map.get(lang, UserLanguage.RU)
+        await session.commit()
+        await state.clear()
+
+        from bot.handlers.client import _main_menu_kb
+        b = InlineKeyboardBuilder()
+        b.button(text=t("btn_profile", lang), callback_data="profile")
+        b.button(text=t("btn_menu", lang), callback_data="menu")
+        b.adjust(1)
+        await call.message.edit_text(t("language_changed", lang), reply_markup=b.as_markup())
+        await call.answer()
+        return
+
     await state.update_data(lang=lang)
 
     b = InlineKeyboardBuilder()
@@ -191,6 +209,7 @@ async def _finish_onboarding(
 async def change_language_start(call: CallbackQuery, state: FSMContext, db_user: User, **kwargs):
     lang = db_user.language.value if db_user.language else "ru"
     await state.set_state(OnboardingFSM.language)
+    await state.update_data(language_only=True)  # только смена языка, профиль не перезаписывать
     b = InlineKeyboardBuilder()
     b.button(text="🇷🇺 Русский", callback_data="onb:lang:ru")
     b.button(text="🇺🇿 O'zbek",  callback_data="onb:lang:uz")

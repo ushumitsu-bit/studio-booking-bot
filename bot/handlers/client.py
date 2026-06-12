@@ -634,8 +634,9 @@ async def show_profile(call: CallbackQuery, db_user: User, **kwargs):
 
 
 @router.callback_query(F.data == "edit_profile")
-async def edit_profile(call: CallbackQuery, state: FSMContext, db_user: User, **kwargs):
+async def edit_profile(call: CallbackQuery, state: FSMContext, session: AsyncSession, db_user: User, **kwargs):
     db_user.onboarding_done = False
+    await session.commit()
     from bot.handlers.onboarding import start_onboarding
     await call.message.delete()
     await start_onboarding(call.message, state)

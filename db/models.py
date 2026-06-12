@@ -140,6 +140,7 @@ class Booking(Base):
     reminder_sent  = Column(Boolean, default=False)
     reminder2_sent = Column(Boolean, default=False)
     feedback_sent  = Column(Boolean, default=False)   # запрос отзыва отправлен
+    streak_updated = Column(Boolean, default=False)   # streak пользователя уже обновлён
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="bookings")

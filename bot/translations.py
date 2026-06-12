@@ -291,6 +291,11 @@ _T: dict[str, dict[str, str]] = {
         "uz": "✏️ Profilni tahrirlash",
         "en": "✏️ Edit profile",
     },
+    "language_changed": {
+        "ru": "✅ Язык изменён на Русский.",
+        "uz": "✅ Til O'zbekchaga o'zgartirildi.",
+        "en": "✅ Language changed to English.",
+    },
     "profile_gender_female": {"ru": "Девушка 💃", "uz": "Qiz 💃",   "en": "Female 💃"},
     "profile_gender_male":   {"ru": "Парень 🕺",  "uz": "Yigit 🕺", "en": "Male 🕺"},
     "profile_gender_none":   {"ru": "—",           "uz": "—",        "en": "—"},

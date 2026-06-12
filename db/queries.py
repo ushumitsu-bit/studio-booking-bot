@@ -139,7 +139,19 @@ async def cancel_booking(session: AsyncSession, booking_id: int):
         return
     cls = await session.get(Class, booking.class_id)
     if cls and cls.starts_at > datetime.utcnow():
-        sub = await get_active_subscription(session, booking.user_id)
+        # Возвращаем занятие в любой абонемент (включая замороженный)
+        now = datetime.utcnow()
+        result = await session.execute(
+            select(Subscription).where(
+                and_(
+                    Subscription.user_id == booking.user_id,
+                    Subscription.classes_left > 0,
+                    (Subscription.expires_at == None) | (Subscription.expires_at > now),
+                )
+            )
+            .order_by(Subscription.expires_at)
+        )
+        sub = result.scalar_one_or_none()
         if sub:
             sub.classes_left += 1
     booking.status = BookingStatus.CANCELLED

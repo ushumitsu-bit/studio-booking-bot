@@ -49,4 +49,4 @@ def verify_token(token: str) -> Optional[int]:
 def qr_url(class_id: int) -> str:
     """URL, который вшивается в QR-код и открывается в miniapp."""
     token = make_token(class_id)
-    return f"https://pilates.fapass.xyz/miniapp/?attend={token}"
+    return f"{settings.WEBHOOK_HOST}/miniapp/?attend={token}"

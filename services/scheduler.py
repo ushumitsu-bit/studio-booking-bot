@@ -164,27 +164,16 @@ async def send_kick_messages(bot: Bot):
             except Exception as e:
                 logger.error(f"Kick error {booking.user_id}: {e}")
 
-        # Обновляем streak для attended-записей у которых ещё не обновлён
+        # Обновляем streak для attended-записей, по которым ещё не обновляли
+        from sqlalchemy.orm import selectinload as _sil
         now = datetime.utcnow()
-        result = await session.execute(
-            select(Booking).join(Class).where(
-                and_(
-                    Booking.status == BookingStatus.ATTENDED,
-                    Class.starts_at >= now - timedelta(hours=4),
-                    Class.starts_at <= now,
-                )
-            )
-        )
-        from sqlalchemy.orm import selectinload
         result2 = await session.execute(
             select(Booking)
-            .options(selectinload(Booking.user), selectinload(Booking.cls))
-            .join(Class)
+            .options(_sil(Booking.user), _sil(Booking.cls))
             .where(
                 and_(
                     Booking.status == BookingStatus.ATTENDED,
-                    Class.starts_at >= now - timedelta(hours=4),
-                    Class.starts_at <= now,
+                    Booking.streak_updated == False,
                 )
             )
         )
@@ -198,6 +187,7 @@ async def send_kick_messages(bot: Bot):
             else:
                 user.streak_count = (user.streak_count or 0) + 1
             user.last_attended_at = now
+            booking.streak_updated = True
 
             streak_text = text_streak(user.streak_count)
             if streak_text:
