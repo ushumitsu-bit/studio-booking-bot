@@ -232,17 +232,30 @@ alembic downgrade -1       # Откатить последнюю
 - Ubuntu 22.04 LTS, 1 vCPU / 1 GB RAM
 - Публичный IP + домен с A-записью → `WEBHOOK_HOST`
 
-### Быстрый деплой
+### Автоматический деплой (с нуля)
+
+Скрипт `scripts/deploy.sh` делает всё сам:
+- Устанавливает Docker, Nginx, Certbot, fail2ban
+- Настраивает firewall (UFW — только 22/80/443)
+- Клонирует репо в `/opt/studio-booking-bot`
+- Получает SSL-сертификат (Let's Encrypt, автопродление в cron)
+- Настраивает fail2ban (защита от брутфорса)
+- Запускает Docker Compose
+- Применяет все миграции БД
+
 ```bash
-git clone https://github.com/ushumitsu-bit/studio-booking-bot.git /opt/studio-bot
-cd /opt/studio-bot
-cp .env.example .env && nano .env
-bash scripts/deploy.sh
+# На сервере от root:
+export DOMAIN=studio.yourdomain.uz
+export CERTBOT_EMAIL=admin@yourdomain.uz
+git clone https://github.com/ushumitsu-bit/studio-booking-bot.git /opt/studio-booking-bot
+bash /opt/studio-booking-bot/scripts/deploy.sh
 ```
 
-### Обновление
+> Скрипт остановится если нет `.env` — заполни токены (`nano /opt/studio-booking-bot/.env`) и запусти повторно.
+
+### Обновление кода
 ```bash
-cd /opt/studio-bot
+cd /opt/studio-booking-bot
 git pull
 docker compose up -d --build bot webhook
 docker compose exec bot alembic upgrade head
@@ -252,7 +265,10 @@ docker compose exec bot alembic upgrade head
 ```bash
 docker compose logs -f bot       # Логи бота
 docker compose restart bot       # Рестарт
-docker compose ps                # Статус
+docker compose ps                # Статус контейнеров
+fail2ban-client status           # Статус защиты
+fail2ban-client status nginx-4xx # Заблокированные IP
+fail2ban-client unban <IP>       # Разблокировать IP
 ```
 
 ---
