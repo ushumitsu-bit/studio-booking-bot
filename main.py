@@ -7,7 +7,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import MenuButtonWebApp, WebAppInfo
 
-from bot.handlers import client, admin, payments
+from bot.handlers import client, admin, payments, onboarding
 from bot.middlewares.auth import AuthMiddleware
 from services.scheduler import setup_scheduler
 from db.engine import init_db
@@ -37,7 +37,8 @@ async def main():
     dp.message.middleware(AuthMiddleware())
     dp.callback_query.middleware(AuthMiddleware())
 
-    # Роутеры
+    # Роутеры — onboarding первым, чтобы FSM-состояния перехватывались раньше
+    dp.include_router(onboarding.router)
     dp.include_router(client.router)
     dp.include_router(payments.router)
     dp.include_router(admin.router)
@@ -54,7 +55,7 @@ async def main():
     scheduler = await setup_scheduler(bot)
     scheduler.start()
 
-    logger.info("Бот запущен 🧘")
+    logger.info(f"Бот запущен: {settings.BOT_NAME}")
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:

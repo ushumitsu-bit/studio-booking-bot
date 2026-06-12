@@ -3,6 +3,10 @@ from pydantic import PostgresDsn
 
 
 class Settings(BaseSettings):
+    # Branding — configurable per studio
+    STUDIO_NAME: str = "Latina Mafia"
+    BOT_NAME: str = "Latina Mafia Bot"
+
     # Telegram
     BOT_TOKEN: str
     ADMIN_IDS: list[int] = []          # Telegram ID администраторов

@@ -10,10 +10,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from db.models import (
-    Booking, BookingStatus, Class, Payment,
+    Booking, BookingStatus, Class, Gender, Payment,
     PaymentStatus, Subscription, SubscriptionType, User,
 )
-from db.queries import create_class, get_all_active_users
+from db.queries import (
+    create_class, get_all_active_users, get_users_by_filter,
+    freeze_subscription, unfreeze_subscription,
+)
 import logging
 import calendar as cal_module
 
@@ -89,8 +92,13 @@ class SettingsFSM(StatesGroup):
     edit_value = State()
 
 class BroadcastFSM(StatesGroup):
-    text    = State()
-    confirm = State()
+    filter_choice = State()
+    text          = State()
+    confirm       = State()
+
+class ManualBookFSM(StatesGroup):
+    search    = State()
+    class_sel = State()
 
 PAGE_SIZE = 8
 
@@ -453,27 +461,36 @@ async def _show_class_detail(call: CallbackQuery, session: AsyncSession, cls_id:
     attended = sum(1 for bk, _ in rows if bk.status == BookingStatus.ATTENDED)
     confirmed = sum(1 for bk, _ in rows if bk.status == BookingStatus.CONFIRMED)
 
-    roster = "\n".join(
-        f"  {STATUS_ICON.get(bk.status,'⬜')} {u.full_name}"
-        for bk, u in rows
-    ) if rows else "  (никто не записан)"
+    # Гендерный баланс
+    females = [u for _, u in rows if u.gender == Gender.FEMALE]
+    males   = [u for _, u in rows if u.gender == Gender.MALE]
+    gender_line = f"💃 Девушек: {len(females)}  ·  🕺 Парней: {len(males)}"
+
+    roster_lines = []
+    for bk, u in rows:
+        icon = STATUS_ICON.get(bk.status, "⬜")
+        g = "💃" if u.gender == Gender.FEMALE else "🕺" if u.gender == Gender.MALE else "👤"
+        roster_lines.append(f"  {icon}{g} {u.full_name}")
+    roster = "\n".join(roster_lines) if roster_lines else "  (никто не записан)"
 
     pay_label = "💳 через бота" if getattr(cls, "payment_enabled", True) else "🏢 через студию"
     location  = getattr(cls, "location", "—")
 
     b = InlineKeyboardBuilder()
-    b.button(text="📱 QR явка",          callback_data=f"adm:qr:{cls_id}")
-    b.button(text="✅ Отметить вручную", callback_data=f"adm:roster:{cls_id}")
-    b.button(text="❌ Отменить занятие", callback_data=f"adm:cancel_cls:{cls_id}")
-    b.button(text="← Расписание",       callback_data="adm:schedule")
-    b.adjust(2, 1, 1)
+    b.button(text="📱 QR явка",           callback_data=f"adm:qr:{cls_id}")
+    b.button(text="✅ Отметить вручную",  callback_data=f"adm:roster:{cls_id}")
+    b.button(text="➕ Записать клиента",  callback_data=f"adm:manbook:{cls_id}")
+    b.button(text="❌ Отменить занятие",  callback_data=f"adm:cancel_cls:{cls_id}")
+    b.button(text="← Расписание",        callback_data="adm:schedule")
+    b.adjust(2, 2, 1)
 
     await call.message.edit_text(
         f"📌 <b>{cls.title}</b>\n"
         f"📅 {cls.starts_at.strftime('%d.%m.%Y %H:%M')}\n"
         f"👤 {cls.trainer} · 📍 {location}\n"
         f"💳 {pay_label}\n"
-        f"👥 Всего: {len(rows)}/{cls.max_spots}  ·  ✅ пришли: {attended}  ·  ⬜ ожидаем: {confirmed}\n\n"
+        f"👥 Всего: {len(rows)}/{cls.max_spots}  ·  ✅ пришли: {attended}  ·  ⬜ ожидаем: {confirmed}\n"
+        f"{gender_line}\n\n"
         f"{roster}",
         reply_markup=b.as_markup(),
     )
@@ -511,6 +528,94 @@ async def cb_class_qr(call: CallbackQuery, session: AsyncSession, **kwargs):
             f"<i>Действителен 2 часа после начала занятия.</i>"
         ),
     )
+
+
+@router.callback_query(F.data.startswith("adm:manbook:"))
+async def cb_manual_book_start(call: CallbackQuery, state: FSMContext, session: AsyncSession, **kwargs):
+    if not await check_admin(call):
+        return
+    cls_id = int(call.data[len("adm:manbook:"):])
+    await state.update_data(cls_id=cls_id)
+    await state.set_state(ManualBookFSM.search)
+    b = InlineKeyboardBuilder()
+    b.button(text="← Назад", callback_data=f"adm:cls:{cls_id}")
+    b.adjust(1)
+    await call.message.edit_text(
+        "➕ <b>Записать клиента</b>\n\nВведи имя или username клиента:",
+        reply_markup=b.as_markup(),
+    )
+    await call.answer()
+
+
+@router.message(ManualBookFSM.search)
+async def cb_manual_book_search(message: Message, state: FSMContext, session: AsyncSession, **kwargs):
+    if not is_admin(message.from_user.id):
+        return
+    query = message.text.strip().lower()
+    data = await state.get_data()
+    cls_id = data.get("cls_id")
+
+    result = await session.execute(
+        select(User).where(
+            User.is_active == True,
+            (func.lower(User.full_name).contains(query)) |
+            (func.lower(User.username).contains(query))
+        ).limit(10)
+    )
+    users = result.scalars().all()
+
+    if not users:
+        await message.answer("❌ Никого не найдено. Попробуй другое имя:")
+        return
+
+    b = InlineKeyboardBuilder()
+    for u in users:
+        has_sub = await session.scalar(
+            select(func.count(Subscription.id)).where(
+                Subscription.user_id == u.id, Subscription.classes_left > 0
+            )
+        ) or 0
+        icon = "✅" if has_sub else "⚠️"
+        b.button(text=f"{icon} {u.full_name}", callback_data=f"adm:manbook_confirm:{cls_id}:{u.id}")
+    b.button(text="← Отмена", callback_data=f"adm:cls:{cls_id}")
+    b.adjust(1)
+    await message.answer("Выбери клиента:", reply_markup=b.as_markup())
+
+
+@router.callback_query(F.data.startswith("adm:manbook_confirm:"))
+async def cb_manual_book_confirm(call: CallbackQuery, state: FSMContext, session: AsyncSession, **kwargs):
+    if not await check_admin(call):
+        return
+    await state.clear()
+    parts = call.data.split(":")
+    cls_id, user_id = int(parts[2]), int(parts[3])
+
+    from db.queries import get_booking, create_booking
+    existing = await get_booking(session, user_id, cls_id)
+    if existing and existing.status == BookingStatus.CONFIRMED:
+        await call.answer("Клиент уже записан!", show_alert=True)
+        return
+
+    cls = await session.get(Class, cls_id)
+    u = await session.get(User, user_id)
+    await create_booking(session, user_id, cls_id)
+
+    try:
+        await call.bot.send_message(
+            user_id,
+            f"📌 <b>Тебя записали на занятие</b>\n\n🧘 {cls.title}\n📅 {cls.starts_at.strftime('%d.%m.%Y в %H:%M')}\n👤 {cls.trainer}",
+        )
+    except Exception:
+        pass
+
+    b = InlineKeyboardBuilder()
+    b.button(text="← К занятию", callback_data=f"adm:cls:{cls_id}")
+    b.adjust(1)
+    await call.message.edit_text(
+        f"✅ <b>{u.full_name}</b> записан(а) на <b>{cls.title}</b>",
+        reply_markup=b.as_markup(),
+    )
+    await call.answer()
 
 
 @router.callback_query(F.data.startswith("adm:roster:"))
@@ -658,16 +763,36 @@ async def cb_user_card(call: CallbackQuery, session: AsyncSession, **kwargs):
     sub = await session.scalar(select(Subscription).where(Subscription.user_id == uid, Subscription.classes_left > 0).order_by(Subscription.expires_at))
     missed = await session.scalar(select(func.count(Booking.id)).where(Booking.user_id == uid, Booking.status == BookingStatus.MISSED)) or 0
     total_bk = await session.scalar(select(func.count(Booking.id)).where(Booking.user_id == uid)) or 0
+    # Гендер и уровень
+    from db.models import Gender as _G, FitnessLevel as _FL
+    gender_icon = "💃" if u.gender == _G.FEMALE else "🕺" if u.gender == _G.MALE else "👤"
+    level_names = {
+        _FL.BEGINNER: "Новичок", _FL.BASIC: "Базовый",
+        _FL.INTERMEDIATE: "Средний", _FL.ADVANCED: "Продвинутый",
+    }
+    level_str = level_names.get(u.fitness_level, "—") if u.fitness_level else "—"
+
     sub_text = (f"✅ Абонемент: {sub.classes_left} зан." if sub else "⚠️ Абонемента нет")
+    if sub and sub.is_frozen:
+        sub_text += f"\n❄️ Заморожен до {sub.frozen_until.strftime('%d.%m.%Y') if sub.frozen_until else '?'}"
+
     b = InlineKeyboardBuilder()
     b.button(text="➕ Начислить занятия", callback_data=f"adm:give:{uid}")
     b.button(text="🔥 Пнуть",            callback_data=f"adm:kick:{uid}")
     b.button(text="📋 История записей",  callback_data=f"adm:bkhistory:{uid}")
+    if sub:
+        if sub.is_frozen:
+            b.button(text="🔥 Разморозить абонемент", callback_data=f"adm:unfreeze:{sub.id}:{uid}")
+        else:
+            b.button(text="❄️ Заморозить абонемент",  callback_data=f"adm:freeze:{sub.id}:{uid}")
     b.button(text="🚫 Заблокировать",    callback_data=f"adm:block:{uid}")
-    b.button(text="← Клиенты",         callback_data="adm:clients:0")
+    b.button(text="← Клиенты",          callback_data="adm:clients:0")
     b.adjust(2, 2, 1)
     await call.message.edit_text(
-        f"👤 <b>{u.full_name}</b>\n@{u.username or '—'}  ·  <code>{u.id}</code>\n\n{sub_text}\nЗанятий: {total_bk}  ·  пропусков: {missed}",
+        f"{gender_icon} <b>{u.full_name}</b>\n"
+        f"@{u.username or '—'}  ·  <code>{u.id}</code>\n"
+        f"🧘 Уровень: {level_str}  ·  🔥 Серия: {u.streak_count or 0}\n\n"
+        f"{sub_text}\nЗанятий: {total_bk}  ·  пропусков: {missed}",
         reply_markup=b.as_markup(),
     )
     await call.answer()
@@ -722,6 +847,69 @@ async def cb_kick(call: CallbackQuery, session: AsyncSession, **kwargs):
         await call.answer("✅ Пинок отправлен!", show_alert=True)
     except Exception:
         await call.answer("❌ Клиент заблокировал бота", show_alert=True)
+
+@router.callback_query(F.data.startswith("adm:freeze:"))
+async def cb_freeze(call: CallbackQuery, session: AsyncSession, **kwargs):
+    if not await check_admin(call):
+        return
+    parts = call.data.split(":")
+    sub_id, uid = int(parts[2]), int(parts[3])
+    b = InlineKeyboardBuilder()
+    for n in [7, 14, 30]:
+        b.button(text=f"❄️ {n} дней", callback_data=f"adm:freeze_do:{sub_id}:{uid}:{n}")
+    b.button(text="← Назад", callback_data=f"adm:user:{uid}")
+    b.adjust(3, 1)
+    await call.message.edit_text("❄️ <b>Заморозка абонемента</b>\n\nНа сколько дней?", reply_markup=b.as_markup())
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("adm:freeze_do:"))
+async def cb_freeze_do(call: CallbackQuery, session: AsyncSession, **kwargs):
+    if not await check_admin(call):
+        return
+    parts = call.data.split(":")
+    sub_id, uid, days = int(parts[2]), int(parts[3]), int(parts[4])
+    sub = await freeze_subscription(session, sub_id, days)
+    u = await session.get(User, uid)
+    try:
+        await call.bot.send_message(
+            uid,
+            f"❄️ Твой абонемент заморожен на <b>{days} дней</b>.\n"
+            f"Срок действия продлён на это время.",
+        )
+    except Exception:
+        pass
+    b = InlineKeyboardBuilder()
+    b.button(text="← К клиенту", callback_data=f"adm:user:{uid}")
+    b.adjust(1)
+    await call.message.edit_text(
+        f"❄️ Абонемент <b>{u.full_name}</b> заморожен на {days} дней.",
+        reply_markup=b.as_markup(),
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("adm:unfreeze:"))
+async def cb_unfreeze(call: CallbackQuery, session: AsyncSession, **kwargs):
+    if not await check_admin(call):
+        return
+    parts = call.data.split(":")
+    sub_id, uid = int(parts[2]), int(parts[3])
+    await unfreeze_subscription(session, sub_id)
+    u = await session.get(User, uid)
+    try:
+        await call.bot.send_message(uid, "🔥 Твой абонемент разморожен! Записывайся на занятия 🧘")
+    except Exception:
+        pass
+    b = InlineKeyboardBuilder()
+    b.button(text="← К клиенту", callback_data=f"adm:user:{uid}")
+    b.adjust(1)
+    await call.message.edit_text(
+        f"✅ Абонемент <b>{u.full_name}</b> разморожен.",
+        reply_markup=b.as_markup(),
+    )
+    await call.answer()
+
 
 @router.callback_query(F.data.startswith("adm:block:"))
 async def cb_block(call: CallbackQuery, session: AsyncSession, **kwargs):
@@ -891,21 +1079,54 @@ async def msg_settings_value(message: Message, state: FSMContext, session: Async
 async def cb_broadcast_start(call: CallbackQuery, state: FSMContext, **kwargs):
     if not await check_admin(call):
         return
-    await state.set_state(BroadcastFSM.text)
-    await call.message.edit_text("📣 <b>Рассылка</b>\n\nВведи текст:")
+    await state.set_state(BroadcastFSM.filter_choice)
+    b = InlineKeyboardBuilder()
+    b.button(text="👥 Всем",              callback_data="adm:bcast_filter:all")
+    b.button(text="💃 Только девушкам",   callback_data="adm:bcast_filter:female")
+    b.button(text="🕺 Только парням",     callback_data="adm:bcast_filter:male")
+    b.button(text="✅ Есть абонемент",    callback_data="adm:bcast_filter:has_sub")
+    b.button(text="⚠️ Нет абонемента",   callback_data="adm:bcast_filter:no_sub")
+    b.button(text="🌱 Новички",          callback_data="adm:bcast_filter:beginner")
+    b.button(text="❌ Отмена",            callback_data="adm:main")
+    b.adjust(1)
+    await call.message.edit_text("📣 <b>Рассылка</b>\n\nКому отправить?", reply_markup=b.as_markup())
     await call.answer()
+
+
+@router.callback_query(F.data.startswith("adm:bcast_filter:"), BroadcastFSM.filter_choice)
+async def cb_bcast_filter(call: CallbackQuery, state: FSMContext, **kwargs):
+    if not await check_admin(call):
+        return
+    filter_val = call.data[len("adm:bcast_filter:"):]
+    await state.update_data(bcast_filter=filter_val)
+    await state.set_state(BroadcastFSM.text)
+    filter_labels = {
+        "all": "Всем", "female": "Только девушкам", "male": "Только парням",
+        "has_sub": "С абонементом", "no_sub": "Без абонемента", "beginner": "Новичкам",
+    }
+    await call.message.edit_text(
+        f"📣 <b>Рассылка</b> → {filter_labels.get(filter_val, filter_val)}\n\nВведи текст сообщения:"
+    )
+    await call.answer()
+
 
 @router.message(BroadcastFSM.text)
 async def msg_broadcast_text(message: Message, state: FSMContext, **kwargs):
     raw = message.text or ""
     await state.update_data(text=raw)
     await state.set_state(BroadcastFSM.confirm)
+    data = await state.get_data()
+    filter_val = data.get("bcast_filter", "all")
     b = InlineKeyboardBuilder()
-    b.button(text="✅ Отправить всем", callback_data="adm:bcast_go")
-    b.button(text="❌ Отмена",         callback_data="adm:main")
+    b.button(text="✅ Отправить", callback_data="adm:bcast_go")
+    b.button(text="❌ Отмена",   callback_data="adm:main")
     b.adjust(1)
     preview = _html.escape(raw)
-    await message.answer(f"📣 <b>Предпросмотр:</b>\n\n{preview}\n\nОтправить всем?", reply_markup=b.as_markup())
+    await message.answer(
+        f"📣 <b>Предпросмотр</b> (фильтр: {filter_val}):\n\n{preview}\n\nОтправить?",
+        reply_markup=b.as_markup(),
+    )
+
 
 @router.callback_query(F.data == "adm:bcast_go", BroadcastFSM.confirm)
 async def cb_broadcast_go(call: CallbackQuery, session: AsyncSession, state: FSMContext, **kwargs):
@@ -913,8 +1134,20 @@ async def cb_broadcast_go(call: CallbackQuery, session: AsyncSession, state: FSM
         return
     data = await state.get_data()
     await state.clear()
-    text = data.get("text", "")
-    users = await get_all_active_users(session)
+    text        = data.get("text", "")
+    filter_val  = data.get("bcast_filter", "all")
+
+    from db.models import Gender as _G, FitnessLevel as _FL
+    filter_map = {
+        "all":      {},
+        "female":   {"gender": _G.FEMALE},
+        "male":     {"gender": _G.MALE},
+        "has_sub":  {"has_sub": True},
+        "no_sub":   {"has_sub": False},
+        "beginner": {"fitness_level": _FL.BEGINNER},
+    }
+    users = await get_users_by_filter(session, **filter_map.get(filter_val, {}))
+
     await call.message.edit_text(f"⏳ Отправляю {len(users)} клиентам...")
     sent, failed = 0, 0
     safe_text = _html.escape(text)
@@ -927,5 +1160,8 @@ async def cb_broadcast_go(call: CallbackQuery, session: AsyncSession, state: FSM
     b = InlineKeyboardBuilder()
     b.button(text="← Меню", callback_data="adm:main")
     b.adjust(1)
-    await call.message.edit_text(f"📣 <b>Готово!</b>\n\n✅ Отправлено: {sent}\n❌ Ошибок: {failed}", reply_markup=b.as_markup())
+    await call.message.edit_text(
+        f"📣 <b>Готово!</b>\n\n✅ Отправлено: {sent}\n❌ Ошибок: {failed}",
+        reply_markup=b.as_markup(),
+    )
     await call.answer()

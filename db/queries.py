@@ -5,13 +5,13 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import select, update, and_
+from sqlalchemy import select, update, and_, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from db.models import (
-    Booking, BookingStatus, Class, Payment, PaymentStatus,
-    Subscription, SubscriptionType, User,
+    Booking, BookingStatus, Class, ClassFeedback, Payment, PaymentStatus,
+    Subscription, SubscriptionType, User, Waitlist,
 )
 
 
@@ -38,6 +38,27 @@ async def get_user(session: AsyncSession, user_id: int) -> Optional[User]:
 
 async def get_all_active_users(session: AsyncSession) -> list[User]:
     result = await session.execute(select(User).where(User.is_active == True))
+    return result.scalars().all()
+
+
+async def get_users_by_filter(
+    session: AsyncSession,
+    gender=None,
+    fitness_level=None,
+    has_sub: Optional[bool] = None,
+) -> list[User]:
+    q = select(User).where(User.is_active == True)
+    if gender is not None:
+        q = q.where(User.gender == gender)
+    if fitness_level is not None:
+        q = q.where(User.fitness_level == fitness_level)
+    if has_sub is True:
+        active_ids = select(Subscription.user_id).where(Subscription.classes_left > 0)
+        q = q.where(User.id.in_(active_ids))
+    elif has_sub is False:
+        active_ids = select(Subscription.user_id).where(Subscription.classes_left > 0)
+        q = q.where(User.id.not_in(active_ids))
+    result = await session.execute(q)
     return result.scalars().all()
 
 
@@ -126,7 +147,6 @@ async def cancel_booking(session: AsyncSession, booking_id: int):
 
 
 async def mark_missed_bookings(session: AsyncSession):
-    """Помечает как 'пропущено' все подтверждённые записи на прошедшие занятия."""
     now = datetime.utcnow()
     result = await session.execute(
         select(Booking)
@@ -146,10 +166,28 @@ async def mark_missed_bookings(session: AsyncSession):
     return bookings
 
 
+async def get_attended_bookings_for_feedback(session: AsyncSession) -> list[Booking]:
+    """Attended-записи, по которым ещё не отправлен запрос отзыва."""
+    result = await session.execute(
+        select(Booking)
+        .options(selectinload(Booking.cls), selectinload(Booking.user))
+        .join(Class)
+        .where(
+            and_(
+                Booking.status == BookingStatus.ATTENDED,
+                Booking.feedback_sent == False,
+                Class.starts_at < datetime.utcnow(),
+            )
+        )
+    )
+    return result.scalars().all()
+
+
 # ═══════════════════════ SUBSCRIPTIONS ═══════════════════════════
 
 SUBSCRIPTION_CLASSES = {
     SubscriptionType.SINGLE:  1,
+    SubscriptionType.TRIAL:   1,
     SubscriptionType.PACK_4:  4,
     SubscriptionType.PACK_8:  8,
     SubscriptionType.PACK_12: 12,
@@ -164,6 +202,7 @@ async def get_active_subscription(session: AsyncSession, user_id: int) -> Option
             and_(
                 Subscription.user_id == user_id,
                 Subscription.classes_left > 0,
+                Subscription.is_frozen == False,
                 (Subscription.expires_at == None) | (Subscription.expires_at > now),
             )
         )
@@ -195,8 +234,31 @@ async def decrement_subscription(session: AsyncSession, user_id: int):
     return sub
 
 
+async def freeze_subscription(
+    session: AsyncSession, sub_id: int, days: int
+) -> Optional[Subscription]:
+    sub = await session.get(Subscription, sub_id)
+    if not sub or sub.classes_left <= 0:
+        return None
+    sub.is_frozen = True
+    sub.frozen_until = datetime.utcnow() + timedelta(days=days)
+    if sub.expires_at:
+        sub.expires_at = sub.expires_at + timedelta(days=days)
+    await session.commit()
+    return sub
+
+
+async def unfreeze_subscription(session: AsyncSession, sub_id: int) -> Optional[Subscription]:
+    sub = await session.get(Subscription, sub_id)
+    if not sub:
+        return None
+    sub.is_frozen = False
+    sub.frozen_until = None
+    await session.commit()
+    return sub
+
+
 async def get_expiring_subscriptions(session: AsyncSession) -> list[Subscription]:
-    """Абонементы, истекающие через ≤3 дня, без отправленного предупреждения о дате."""
     deadline = datetime.utcnow() + timedelta(days=3)
     result = await session.execute(
         select(Subscription)
@@ -214,7 +276,6 @@ async def get_expiring_subscriptions(session: AsyncSession) -> list[Subscription
 
 
 async def get_low_classes_subscriptions(session: AsyncSession) -> list[Subscription]:
-    """Абонементы с ≤2 занятиями, без отправленного предупреждения о малом остатке."""
     result = await session.execute(
         select(Subscription)
         .options(selectinload(Subscription.user))
@@ -229,6 +290,83 @@ async def get_low_classes_subscriptions(session: AsyncSession) -> list[Subscript
     return result.scalars().all()
 
 
+# ═══════════════════════ WAITLIST ════════════════════════════════
+
+async def get_waitlist_entry(
+    session: AsyncSession, user_id: int, class_id: int
+) -> Optional[Waitlist]:
+    result = await session.execute(
+        select(Waitlist).where(
+            and_(Waitlist.user_id == user_id, Waitlist.class_id == class_id)
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def add_to_waitlist(
+    session: AsyncSession, user_id: int, class_id: int
+) -> Waitlist:
+    entry = Waitlist(user_id=user_id, class_id=class_id)
+    session.add(entry)
+    await session.commit()
+    return entry
+
+
+async def get_next_waitlist(
+    session: AsyncSession, class_id: int
+) -> Optional[Waitlist]:
+    result = await session.execute(
+        select(Waitlist)
+        .options(selectinload(Waitlist.user))
+        .where(
+            and_(Waitlist.class_id == class_id, Waitlist.notified == False)
+        )
+        .order_by(Waitlist.created_at)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def mark_waitlist_notified(session: AsyncSession, entry_id: int):
+    entry = await session.get(Waitlist, entry_id)
+    if entry:
+        entry.notified = True
+        await session.commit()
+
+
+async def remove_from_waitlist(session: AsyncSession, user_id: int, class_id: int):
+    await session.execute(
+        delete(Waitlist).where(
+            and_(Waitlist.user_id == user_id, Waitlist.class_id == class_id)
+        )
+    )
+    await session.commit()
+
+
+# ═══════════════════════ FEEDBACK ════════════════════════════════
+
+async def save_feedback(
+    session: AsyncSession,
+    user_id: int,
+    class_id: int,
+    rating: int,
+    comment: str | None = None,
+) -> ClassFeedback:
+    fb = ClassFeedback(user_id=user_id, class_id=class_id, rating=rating, comment=comment)
+    session.add(fb)
+    await session.commit()
+    return fb
+
+
+async def has_feedback(session: AsyncSession, user_id: int, class_id: int) -> bool:
+    result = await session.execute(
+        select(ClassFeedback).where(
+            and_(ClassFeedback.user_id == user_id, ClassFeedback.class_id == class_id)
+        )
+    )
+    return result.scalar_one_or_none() is not None
+
+
 # ═══════════════════════ PAYMENTS ════════════════════════════════
 
 async def create_payment(
@@ -238,11 +376,10 @@ async def create_payment(
     description: str,
     sub_type: SubscriptionType,
 ) -> Payment:
-    # Сначала создаём «болванку» абонемента (activate после оплаты)
     sub = Subscription(
         user_id=user_id,
         sub_type=sub_type,
-        classes_left=0,                    # активируется после оплаты
+        classes_left=0,
         expires_at=None,
     )
     session.add(sub)
@@ -271,7 +408,6 @@ async def set_payme_id(session: AsyncSession, payment_id: int, payme_id: str):
 
 
 async def confirm_payme_payment(session: AsyncSession, payme_id: str) -> Optional[Payment]:
-    """Вызывается при PerformTransaction от Payme."""
     result = await session.execute(
         select(Payment)
         .options(selectinload(Payment.subscription), selectinload(Payment.user))
@@ -298,6 +434,8 @@ async def cancel_payme_payment(session: AsyncSession, payme_id: str):
         update(Payment).where(Payment.payme_id == payme_id).values(status=PaymentStatus.CANCELLED)
     )
     await session.commit()
+
+
 # ─── Настройки студии ───────────────────────────────────────
 async def get_setting(session, key: str, default: str = "") -> str:
     from sqlalchemy import text

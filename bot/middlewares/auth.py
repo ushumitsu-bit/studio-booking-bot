@@ -26,6 +26,7 @@ class AuthMiddleware(BaseMiddleware):
                     user = await get_or_create_user(session, tg_user)
                     data["db_user"] = user
                     data["session"] = session
+                    # Язык пользователя доступен хэндлерам через db_user.language
                 return await handler(event, data)
         except Exception as e:
             logger.error(
