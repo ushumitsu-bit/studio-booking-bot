@@ -196,6 +196,20 @@ confirm_payme_payment() → активирует абонемент на 30 дн
 
 ---
 
+## 💳 ЮKassa (опционально, для России)
+
+Если студия работает в России — вместо Payme можно подключить ЮKассу. Провайдер выбирается через `.env`, код пересобирать не нужно.
+
+```env
+PAYMENT_PROVIDER=yookassa       # payme (по умолчанию) или yookassa
+YOOKASSA_SHOP_ID=123456
+YOOKASSA_SECRET_KEY=live_xxx
+```
+
+> ⚠️ Интеграция с ЮKассой в разработке — при `PAYMENT_PROVIDER=yookassa` будет подключён `services/yookassa.py`. Payme остаётся провайдером по умолчанию.
+
+---
+
 ## 📱 Telegram MiniApp
 
 Кнопка **Открыть студию** в главном меню.

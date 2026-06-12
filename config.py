@@ -17,10 +17,17 @@ class Settings(BaseSettings):
     # Redis (FSM storage)
     REDIS_URL: str = "redis://localhost:6379"
 
+    # Платёжный провайдер: payme (Узбекистан) | yookassa (Россия)
+    PAYMENT_PROVIDER: str = "payme"
+
     # Payme Business
-    PAYME_MERCHANT_ID: str             # Merchant ID из личного кабинета Payme
-    PAYME_SECRET_KEY: str              # Секретный ключ (TEST или PROD)
+    PAYME_MERCHANT_ID: str = ""        # Merchant ID из личного кабинета Payme
+    PAYME_SECRET_KEY: str = ""         # Секретный ключ (TEST или PROD)
     PAYME_RETURN_URL: str = ""         # URL после оплаты (можно t.me/your_bot)
+
+    # ЮKassa (для России)
+    YOOKASSA_SHOP_ID: str = ""
+    YOOKASSA_SECRET_KEY: str = ""
 
     # Webhook для Payme (куда Payme шлёт JSON-RPC уведомления)
     WEBHOOK_HOST: str                  # https://yourdomain.com
