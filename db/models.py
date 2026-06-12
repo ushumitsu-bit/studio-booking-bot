@@ -88,10 +88,10 @@ class User(Base):
 
     # Onboarding / profile
     onboarding_done   = Column(Boolean, default=False)
-    language          = Column(Enum(UserLanguage), default=UserLanguage.RU)
-    gender            = Column(Enum(Gender), nullable=True)
-    fitness_level     = Column(Enum(FitnessLevel), nullable=True)
-    class_preference  = Column(Enum(ClassPreference), nullable=True)
+    language          = Column(Enum(UserLanguage, native_enum=False), default=UserLanguage.RU)
+    gender            = Column(Enum(Gender, native_enum=False), nullable=True)
+    fitness_level     = Column(Enum(FitnessLevel, native_enum=False), nullable=True)
+    class_preference  = Column(Enum(ClassPreference, native_enum=False), nullable=True)
     health_notes      = Column(Text, nullable=True)
 
     # Активность
