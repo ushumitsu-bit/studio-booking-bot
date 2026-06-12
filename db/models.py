@@ -87,11 +87,12 @@ class User(Base):
     created_at    = Column(DateTime, default=datetime.utcnow)
 
     # Onboarding / profile
+    # values_callable: SQLAlchemy использует .value ('ru'), а не .name ('RU')
     onboarding_done   = Column(Boolean, default=False)
-    language          = Column(Enum(UserLanguage, native_enum=False), default=UserLanguage.RU)
-    gender            = Column(Enum(Gender, native_enum=False), nullable=True)
-    fitness_level     = Column(Enum(FitnessLevel, native_enum=False), nullable=True)
-    class_preference  = Column(Enum(ClassPreference, native_enum=False), nullable=True)
+    language          = Column(Enum(UserLanguage, native_enum=False, values_callable=lambda x: [e.value for e in x]), default=UserLanguage.RU)
+    gender            = Column(Enum(Gender, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=True)
+    fitness_level     = Column(Enum(FitnessLevel, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=True)
+    class_preference  = Column(Enum(ClassPreference, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=True)
     health_notes      = Column(Text, nullable=True)
 
     # Активность
