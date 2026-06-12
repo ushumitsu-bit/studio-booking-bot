@@ -6,8 +6,8 @@
 # =============================================================
 set -euo pipefail
 
-DOMAIN="${DOMAIN:-pilates.fapass.xyz}"
-REPO_DIR="/opt/pilates-bot"
+DOMAIN="${DOMAIN:-studio.yourdomain.uz}"
+REPO_DIR="/opt/studio-booking-bot"
 CERTBOT_EMAIL="${CERTBOT_EMAIL:-admin@yourdomain.uz}"
 
 GREEN='\033[0;32m'
@@ -41,7 +41,7 @@ if [ -d "$REPO_DIR/.git" ]; then
     git -C "$REPO_DIR" pull
 else
     # Замените URL на ваш репозиторий
-    git clone https://github.com/ushumitsu-bit/pilates-bot.git "$REPO_DIR"
+    git clone https://github.com/ushumitsu-bit/studio-booking-bot.git "$REPO_DIR"
 fi
 
 cd "$REPO_DIR"
